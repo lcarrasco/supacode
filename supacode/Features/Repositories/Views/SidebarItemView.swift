@@ -289,7 +289,7 @@ private struct TitleView: View, Equatable {
           AnyShapeStyle(.secondary)
         }
       Text(name)
-        .font(.footnote)
+        .font(.callout)
         .fontWeight(isEmphasized ? .semibold : .regular)
         .lineLimit(1)
         .foregroundStyle(titleStyle)
@@ -391,6 +391,11 @@ private struct IconContent: View, Equatable {
   // `==` ignores @Environment; SwiftUI tracks env changes separately.
   @Environment(\.backgroundProminence) private var backgroundProminence
 
+  /// t3code's `dark:text-teal-300/90` (Tailwind teal-300 `#5EEAD4` at 90%).
+  static let branchIconTeal = AnyShapeStyle(
+    Color(.sRGB, red: 94 / 255, green: 234 / 255, blue: 212 / 255, opacity: 0.9)
+  )
+
   static func == (lhs: Self, rhs: Self) -> Bool {
     lhs.isFolder == rhs.isFolder
       && lhs.isRemote == rhs.isRemote
@@ -459,7 +464,7 @@ private struct IconContent: View, Equatable {
           .renderingMode(.template)
           .resizable()
           .aspectRatio(contentMode: .fit)
-          .foregroundStyle(isEmphasized ? AnyShapeStyle(.secondary) : icon.color)
+          .foregroundStyle(Self.branchIconTeal)
       } else {
         // No open PR: keep the icon slot empty so titles stay left-aligned.
         Color.clear
@@ -566,13 +571,18 @@ private struct PullRequestBadgeContent: View, Equatable {
 /// Compact form ("just now", "5m ago", "24d ago") à la the reference sidebar.
 private struct RelativeDateContent: View, Equatable {
   let date: Date
+  // `==` ignores @Environment; SwiftUI tracks env changes separately.
+  @Environment(\.backgroundProminence) private var backgroundProminence
 
   static func == (lhs: Self, rhs: Self) -> Bool { lhs.date == rhs.date }
 
   var body: some View {
+    // t3code: very dim by default (`text-muted-foreground/40`), brighter on the
+    // selected row (`text-foreground/82`).
+    let isEmphasized = backgroundProminence == .increased
     Text(RelativeTimeText.short(for: date))
       .font(.caption)
-      .foregroundStyle(.tertiary)
+      .foregroundStyle(isEmphasized ? AnyShapeStyle(.secondary) : AnyShapeStyle(.quaternary))
       .monospacedDigit()
       .transition(.blurReplace)
   }
