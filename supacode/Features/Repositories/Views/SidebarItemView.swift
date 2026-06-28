@@ -289,7 +289,7 @@ private struct TitleView: View, Equatable {
           AnyShapeStyle(.secondary)
         }
       Text(name)
-        .font(.body)
+        .font(.footnote)
         .fontWeight(isEmphasized ? .semibold : .regular)
         .lineLimit(1)
         .foregroundStyle(titleStyle)
@@ -572,7 +572,7 @@ private struct RelativeDateContent: View, Equatable {
   var body: some View {
     Text(RelativeTimeText.short(for: date))
       .font(.caption)
-      .foregroundStyle(.secondary)
+      .foregroundStyle(.tertiary)
       .monospacedDigit()
       .transition(.blurReplace)
   }
