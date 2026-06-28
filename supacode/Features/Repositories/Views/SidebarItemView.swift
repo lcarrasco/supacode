@@ -163,7 +163,9 @@ struct ResolvedRowDisplay: Equatable {
       return
     }
 
-    if hideSubtitle || shouldHideOnMatch {
+    // The main worktree's "Default" marker now rides a trailing pill (see
+    // `DefaultBadgeContent`), so we drop it from the subtitle line entirely.
+    if hideSubtitle || shouldHideOnMatch || isMainWorktree {
       self.subtitle = .none
     } else {
       self.subtitle = .plain(effectiveWorktreeName)
@@ -298,10 +300,17 @@ private struct TitleView: View, Equatable {
       case .none:
         EmptyView()
       case .plain(let text):
-        Text(text)
-          .font(.footnote)
-          .foregroundStyle(accentStyle)
-          .lineLimit(1)
+        // Prefix a small branch glyph so the base-branch name reads as metadata
+        // rather than a second title line.
+        HStack(spacing: 3) {
+          Image(systemName: "arrow.trianglehead.branch")
+            .imageScale(.small)
+            .accessibilityHidden(true)
+          Text(text)
+            .lineLimit(1)
+        }
+        .font(.footnote)
+        .foregroundStyle(accentStyle)
       case .highlight(let repo, let repoColor, let trail, let hostInfo):
         let repoStyle: AnyShapeStyle =
           isEmphasized
@@ -413,11 +422,31 @@ private struct IconContent: View, Equatable {
     rowState != .idle || isFolder || isMissing
   }
 
-  /// Show the leading branch glyph only for rows backed by an OPEN pull request
-  /// (incl. an open PR sitting in the merge queue). Every other idle git row
-  /// renders a transparent placeholder so titles stay aligned without an icon.
+  /// Show the leading PR glyph for any row backed by a pull request (open,
+  /// draft, queued, merged, closed). Idle git rows with no PR render a
+  /// transparent placeholder so titles stay aligned without an icon.
   private var showsBranchIcon: Bool {
-    icon == .open || icon == .queued
+    icon != .branch
+  }
+
+  /// CI status badge only rides a *live* PR — pass/fail/running has no meaning
+  /// on a merged or closed PR, so we suppress it there to cut visual noise.
+  private var showsCheckBadge: Bool {
+    switch icon {
+    case .open, .queued, .draft: true
+    default: false
+    }
+  }
+
+  /// PR-state-driven tint for the leading glyph: open / merge-queued read teal
+  /// (t3code), draft dims, merged is purple, closed is red. Selection flattens
+  /// everything to `.secondary` for legibility on the highlight fill.
+  private var branchIconStyle: AnyShapeStyle {
+    guard !isEmphasized else { return AnyShapeStyle(.secondary) }
+    switch icon {
+    case .open, .queued: return Self.branchIconTeal
+    default: return icon.color
+    }
   }
 
   private var folderIconName: String {
@@ -464,7 +493,7 @@ private struct IconContent: View, Equatable {
           .renderingMode(.template)
           .resizable()
           .aspectRatio(contentMode: .fit)
-          .foregroundStyle(Self.branchIconTeal)
+          .foregroundStyle(branchIconStyle)
       } else {
         // No open PR: keep the icon slot empty so titles stay left-aligned.
         Color.clear
@@ -472,7 +501,7 @@ private struct IconContent: View, Equatable {
     }
     .frame(width: 13, height: 13)
     .overlay(alignment: .bottomTrailing) {
-      if let checkBadgeState, showsBranchIcon {
+      if let checkBadgeState, showsCheckBadge {
         let badgeColor = AnyShapeStyle(checkBadgeState.color)
         let background = AnyShapeStyle(.windowBackground)
         Image(systemName: checkBadgeState.symbolName)
@@ -517,6 +546,9 @@ private struct TrailingView: View {
     // Cross-fade via opacity so flipping ⌘ doesn't snap the row.
     ZStack(alignment: .trailing) {
       HStack(spacing: 6) {
+        if store.isMainWorktree {
+          DefaultBadgeContent()
+        }
         if store.kind == .folder, let host = store.host {
           Image(systemName: "wifi")
             .imageScale(.small)
@@ -553,6 +585,19 @@ private struct TrailingView: View {
         .opacity(hasHint ? 1 : 0)
     }
     .animation(.easeInOut(duration: TerminalTabBarMetrics.fadeAnimationDuration), value: hasHint)
+  }
+}
+
+/// Trailing "default" pill marking the repo's main worktree. Lowercase, muted
+/// gray text inside a subtle gray capsule — quieter than the old yellow label.
+private struct DefaultBadgeContent: View, Equatable {
+  var body: some View {
+    Text("default")
+      .font(.caption2)
+      .foregroundStyle(.tertiary)
+      .padding(.horizontal, 6)
+      .padding(.vertical, 1)
+      .background(.quaternary, in: Capsule())
   }
 }
 
@@ -648,11 +693,29 @@ enum RelativeTimeText {
     case ..<45: return "just now"
     case ..<3_600: return "\(Int((seconds / 60).rounded()))m ago"
     case ..<86_400: return "\(Int((seconds / 3_600).rounded()))h ago"
-    case ..<2_592_000: return "\(Int((seconds / 86_400).rounded()))d ago"
-    case ..<31_536_000: return "\(Int((seconds / 2_592_000).rounded()))mo ago"
-    default: return "\(Int((seconds / 31_536_000).rounded()))y ago"
+    case ..<604_800: return "\(Int((seconds / 86_400).rounded()))d ago"
+    // Past a week, a calendar date ("Jun 20") scans faster than "12d ago".
+    default: return absolute(date, relativeTo: now)
     }
   }
+
+  private static func absolute(_ date: Date, relativeTo now: Date) -> String {
+    let calendar = Calendar.current
+    let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+    return (sameYear ? monthDayFormatter : monthDayYearFormatter).string(from: date)
+  }
+
+  private static let monthDayFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.setLocalizedDateFormatFromTemplate("MMMd")
+    return formatter
+  }()
+
+  private static let monthDayYearFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.setLocalizedDateFormatFromTemplate("MMMdyyyy")
+    return formatter
+  }()
 }
 
 private struct StatusIndicator: View, Equatable {

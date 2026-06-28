@@ -43,9 +43,23 @@ struct SidebarActivityDisplayTests {
     #expect(ago(5) == "just now")
     #expect(ago(120) == "2m ago")
     #expect(ago(3 * 3_600) == "3h ago")
-    #expect(ago(24 * 86_400) == "24d ago")
-    #expect(ago(2 * 2_592_000) == "2mo ago")
-    #expect(ago(3 * 31_536_000) == "3y ago")
+    #expect(ago(3 * 86_400) == "3d ago")
+    #expect(ago(6 * 86_400) == "6d ago")
+  }
+
+  @Test func beyondAWeekShowsAbsoluteDate() {
+    let now = Date(timeIntervalSince1970: 1_000_000_000)
+    func ago(_ seconds: TimeInterval) -> String {
+      RelativeTimeText.short(for: now.addingTimeInterval(-seconds), relativeTo: now)
+    }
+    // Past a week the relative "Xd ago" form gives way to a calendar date.
+    let twelveDays = ago(12 * 86_400)
+    #expect(!twelveDays.hasSuffix("ago"))
+    #expect(!twelveDays.isEmpty)
+
+    let twoYears = ago(2 * 365 * 86_400)
+    #expect(!twoYears.hasSuffix("ago"))
+    #expect(!twoYears.isEmpty)
   }
 
   @Test func futureDateClampsToJustNow() {

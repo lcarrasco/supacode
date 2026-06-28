@@ -41,5 +41,8 @@ struct RepoSectionHeaderView: View {
           .accessibilityLabel("Connecting to remote")
       }
     }
+    // Extra headroom above each repo header so consecutive repo groups read as
+    // distinct blocks instead of one flat run of rows.
+    .padding(.top, 6)
   }
 }
