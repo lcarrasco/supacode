@@ -441,7 +441,7 @@ private struct IconContent: View, Equatable {
           .foregroundStyle(isEmphasized ? AnyShapeStyle(.secondary) : icon.color)
       }
     }
-    .frame(width: 16, height: 16)
+    .frame(width: 13, height: 13)
     .overlay(alignment: .bottomTrailing) {
       if let checkBadgeState, !isSystemImage {
         let badgeColor = AnyShapeStyle(checkBadgeState.color)
@@ -564,12 +564,14 @@ private struct DiffStatsContent: View, Equatable {
   }
 
   var body: some View {
+    // Muted by default for low prominence (Superset-style); full green/red only on the
+    // selected row where the increased background prominence makes the color read cleanly.
     let isEmphasized = backgroundProminence == .increased
     HStack(spacing: 2) {
       Text("+\(addedLines)")
-        .foregroundStyle(isEmphasized ? AnyShapeStyle(.secondary) : AnyShapeStyle(.green))
+        .foregroundStyle(isEmphasized ? AnyShapeStyle(.green) : AnyShapeStyle(.tertiary))
       Text("-\(removedLines)")
-        .foregroundStyle(isEmphasized ? AnyShapeStyle(.secondary) : AnyShapeStyle(.red))
+        .foregroundStyle(isEmphasized ? AnyShapeStyle(.red) : AnyShapeStyle(.tertiary))
     }
     .font(.caption)
     .monospacedDigit()

@@ -291,7 +291,8 @@ private struct SidebarGitRepositorySection: View {
         color: section?.color,
         isRemoving: isRemovingRepository,
         hostInfo: repository.host?.displayAuthority,
-        isResolving: isResolvingRemote
+        isResolving: isResolvingRemote,
+        rootURL: repository.host == nil ? repository.rootURL : nil
       )
     }
     .sectionActions {
@@ -461,7 +462,8 @@ private struct SidebarFailedRepositorySection: View {
         customTitle: customTitle,
         color: color,
         isRemoving: false,
-        hostInfo: store.state.repositories[id: repositoryID]?.host?.displayAuthority
+        hostInfo: store.state.repositories[id: repositoryID]?.host?.displayAuthority,
+        rootURL: standardizedRootURL
       )
     }
     .sectionActions {
