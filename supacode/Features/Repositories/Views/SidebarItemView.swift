@@ -277,14 +277,23 @@ private struct TitleView: View, Equatable {
     let isEmphasized = backgroundProminence == .increased
     let accentStyle = accent.shapeStyle(emphasized: isEmphasized)
     VStack(alignment: .leading, spacing: 0) {
-      let titleText = Text(name)
+      // Selected row reads in full-prominence white + semibold; every other row
+      // recedes to muted gray (Superset / T3-style), unless the user pinned an
+      // explicit row tint, which we still honor when unselected.
+      let titleStyle: AnyShapeStyle =
+        if isEmphasized {
+          AnyShapeStyle(.primary)
+        } else if let customTint {
+          AnyShapeStyle(customTint.color)
+        } else {
+          AnyShapeStyle(.secondary)
+        }
+      Text(name)
         .font(.body)
+        .fontWeight(isEmphasized ? .semibold : .regular)
         .lineLimit(1)
-      if let customTint, !isEmphasized {
-        titleText.foregroundStyle(customTint.color).shimmer(isActive: isBusy)
-      } else {
-        titleText.shimmer(isActive: isBusy)
-      }
+        .foregroundStyle(titleStyle)
+        .shimmer(isActive: isBusy)
       switch subtitle {
       case .none:
         EmptyView()
