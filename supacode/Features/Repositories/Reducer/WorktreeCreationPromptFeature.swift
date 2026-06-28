@@ -116,6 +116,16 @@ struct WorktreeCreationPromptFeature {
     BindingReducer()
     Reduce { state, action in
       switch action {
+      case .binding(\.branchName):
+        // Branch refs can't contain spaces, so fold any whitespace the user
+        // types into dashes live instead of rejecting it on submit.
+        state.validationMessage = nil
+        let sanitized = String(state.branchName.map { $0.isWhitespace ? "-" : $0 })
+        if sanitized != state.branchName {
+          state.branchName = sanitized
+        }
+        return .none
+
       case .binding:
         state.validationMessage = nil
         return .none

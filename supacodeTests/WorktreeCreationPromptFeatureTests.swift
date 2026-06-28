@@ -73,6 +73,24 @@ struct WorktreeCreationPromptFeatureTests {
     )
   }
 
+  @Test func branchNameFoldsWhitespaceIntoDashesAsTyped() async {
+    let store = TestStore(initialState: makeState()) {
+      WorktreeCreationPromptFeature()
+    }
+
+    // Spaces typed into the branch field collapse to dashes live.
+    await store.send(.set(\.branchName, "my feature branch")) {
+      $0.branchName = "my-feature-branch"
+    }
+    // Tabs/newlines fold too; a value with no whitespace passes through untouched.
+    await store.send(.set(\.branchName, "fix/login\tbug")) {
+      $0.branchName = "fix/login-bug"
+    }
+    await store.send(.set(\.branchName, "already-clean")) {
+      $0.branchName = "already-clean"
+    }
+  }
+
   @Test func createButtonTappedThreadsSelectedBaseRef() async {
     let store = TestStore(initialState: makeState(selectedBaseRef: "origin/dev")) {
       WorktreeCreationPromptFeature()
