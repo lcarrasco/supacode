@@ -155,6 +155,7 @@ struct AppFeature {
   @Dependency(TerminalClient.self) private var terminalClient
   @Dependency(WorktreeInfoWatcherClient.self) private var worktreeInfoWatcher
   @Dependency(\.continuousClock) private var clock
+  @Dependency(\.date.now) private var now
 
   var body: some Reducer<State, Action> {
     let core = Reduce<State, Action> { state, action in
@@ -1226,6 +1227,16 @@ struct AppFeature {
           )
         )
       )
+      // Agent activity counts as "last active": stamp the row when an agent is busy.
+      if hasActivity {
+        effects.append(
+          .send(
+            .repositories(
+              .sidebarItems(.element(id: rowID, action: .lastActiveChanged(now)))
+            )
+          )
+        )
+      }
       affectedSurfaces.formUnion(row.surfaceIDs)
     }
     // Per-tab fanout: any tab containing an affected surface re-projects its

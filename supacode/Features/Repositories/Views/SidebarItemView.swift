@@ -52,15 +52,20 @@ struct SidebarItemView: View {
 
     Label {
       HStack(spacing: 8) {
-        TitleView(
-          name: resolved.name,
-          subtitle: resolved.subtitle,
-          accent: resolved.accent,
-          customTint: store.customTint,
-          isLifecycleBusy: store.lifecycle.isBusy,
-          isTaskRunning: store.isTaskRunning
-        )
-        .equatable()
+        HStack(spacing: 6) {
+          if let pill = AgentStatusPill.resolve(store.agents) {
+            AgentStatusPillContent(pill: pill).equatable()
+          }
+          TitleView(
+            name: resolved.name,
+            subtitle: resolved.subtitle,
+            accent: resolved.accent,
+            customTint: store.customTint,
+            isLifecycleBusy: store.lifecycle.isBusy,
+            isTaskRunning: store.isTaskRunning
+          )
+          .equatable()
+        }
         Spacer(minLength: 0)
         TrailingView(
           store: store,
@@ -394,6 +399,13 @@ private struct IconContent: View, Equatable {
     rowState != .idle || isFolder || isMissing
   }
 
+  /// Show the leading branch glyph only for rows backed by an OPEN pull request
+  /// (incl. an open PR sitting in the merge queue). Every other idle git row
+  /// renders a transparent placeholder so titles stay aligned without an icon.
+  private var showsBranchIcon: Bool {
+    icon == .open || icon == .queued
+  }
+
   private var folderIconName: String {
     if isMissing { return "exclamationmark.triangle.fill" }
     switch rowState {
@@ -433,17 +445,20 @@ private struct IconContent: View, Equatable {
           .aspectRatio(contentMode: .fit)
           .fontWeight(.semibold)
           .foregroundStyle(folderColor)
-      } else {
+      } else if showsBranchIcon {
         Image(icon.assetName)
           .renderingMode(.template)
           .resizable()
           .aspectRatio(contentMode: .fit)
           .foregroundStyle(isEmphasized ? AnyShapeStyle(.secondary) : icon.color)
+      } else {
+        // No open PR: keep the icon slot empty so titles stay left-aligned.
+        Color.clear
       }
     }
     .frame(width: 13, height: 13)
     .overlay(alignment: .bottomTrailing) {
-      if let checkBadgeState, !isSystemImage {
+      if let checkBadgeState, showsBranchIcon {
         let badgeColor = AnyShapeStyle(checkBadgeState.color)
         let background = AnyShapeStyle(.windowBackground)
         Image(systemName: checkBadgeState.symbolName)
@@ -479,13 +494,10 @@ private struct TrailingView: View {
       pullRequest: showsPullRequestInfo ? store.pullRequest : nil,
     )
     let prText = display.pullRequestBadgeStyle?.text
-    let agents = store.agents
     let scriptColors = store.runningScripts.map(\.tint)
     let showsNotificationIndicator = store.hasUnseenNotifications
     let notifications = Array(store.notifications)
-    let added = store.addedLines ?? 0
-    let removed = store.removedLines ?? 0
-    let hasStats = added + removed > 0
+    let lastActiveAt = store.lastActiveAt
     let hasStatus = !scriptColors.isEmpty || showsNotificationIndicator
 
     // Cross-fade via opacity so flipping ⌘ doesn't snap the row.
@@ -499,16 +511,12 @@ private struct TrailingView: View {
             .help(host.displayAuthority)
             .accessibilityLabel("Remote host \(host.displayAuthority)")
         }
-        if hasStats {
-          DiffStatsContent(addedLines: added, removedLines: removed)
+        if let lastActiveAt {
+          RelativeDateContent(date: lastActiveAt)
             .equatable()
         }
         if let prText {
           PullRequestBadgeContent(text: prText)
-            .equatable()
-        }
-        if !agents.isEmpty {
-          RunningAgentsBadgeContent(agents: agents)
             .equatable()
         }
         if hasStatus {
@@ -545,37 +553,86 @@ private struct PullRequestBadgeContent: View, Equatable {
   }
 }
 
-private struct RunningAgentsBadgeContent: View, Equatable {
-  let agents: [AgentPresenceFeature.AgentInstance]
+/// "Last active" relative timestamp shown where diff stats used to live.
+/// Compact form ("just now", "5m ago", "24d ago") à la the reference sidebar.
+private struct RelativeDateContent: View, Equatable {
+  let date: Date
+
+  static func == (lhs: Self, rhs: Self) -> Bool { lhs.date == rhs.date }
 
   var body: some View {
-    AgentAvatarGroupView(instances: agents, size: 16)
+    Text(RelativeTimeText.short(for: date))
+      .font(.caption)
+      .foregroundStyle(.secondary)
+      .monospacedDigit()
+      .transition(.blurReplace)
   }
 }
 
-private struct DiffStatsContent: View, Equatable {
-  let addedLines: Int
-  let removedLines: Int
-  // `==` ignores @Environment; SwiftUI tracks env changes separately.
-  @Environment(\.backgroundProminence) private var backgroundProminence
+/// Agent status pill shown inline before the row title (à la the reference
+/// sidebar). Derived from the row's tracked agent instances; `nil` = no pill.
+enum AgentStatusPill: Equatable {
+  case working
+  case waiting
+  case completed
 
-  static func == (lhs: Self, rhs: Self) -> Bool {
-    lhs.addedLines == rhs.addedLines && lhs.removedLines == rhs.removedLines
+  /// Priority: any busy agent wins, then awaiting-input, then a present-but-idle
+  /// agent reads as "Completed" (finished its run). No agents → no pill.
+  static func resolve(_ agents: [AgentPresenceFeature.AgentInstance]) -> AgentStatusPill? {
+    guard !agents.isEmpty else { return nil }
+    if agents.contains(where: { $0.activity == .busy }) { return .working }
+    if agents.contains(where: { $0.activity == .awaitingInput }) { return .waiting }
+    return .completed
   }
 
-  var body: some View {
-    // Muted by default for low prominence (Superset-style); full green/red only on the
-    // selected row where the increased background prominence makes the color read cleanly.
-    let isEmphasized = backgroundProminence == .increased
-    HStack(spacing: 2) {
-      Text("+\(addedLines)")
-        .foregroundStyle(isEmphasized ? AnyShapeStyle(.green) : AnyShapeStyle(.tertiary))
-      Text("-\(removedLines)")
-        .foregroundStyle(isEmphasized ? AnyShapeStyle(.red) : AnyShapeStyle(.tertiary))
+  var label: String {
+    switch self {
+    case .working: "Working"
+    case .waiting: "Waiting"
+    case .completed: "Completed"
     }
-    .font(.caption)
-    .monospacedDigit()
-    .transition(.blurReplace)
+  }
+
+  var color: Color {
+    switch self {
+    case .working: .blue
+    case .waiting: .orange
+    case .completed: .green
+    }
+  }
+}
+
+private struct AgentStatusPillContent: View, Equatable {
+  let pill: AgentStatusPill
+
+  var body: some View {
+    HStack(spacing: 4) {
+      Circle()
+        .fill(pill.color)
+        .frame(width: 6, height: 6)
+      Text(pill.label)
+        .font(.caption)
+        .foregroundStyle(pill.color)
+    }
+    .fixedSize()
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("Agent \(pill.label)")
+  }
+}
+
+/// Compact relative-time formatting for the sidebar's "last active" label.
+/// Recomputed at render time; refreshes whenever the row's state changes.
+enum RelativeTimeText {
+  static func short(for date: Date, relativeTo now: Date = Date()) -> String {
+    let seconds = max(0, now.timeIntervalSince(date))
+    switch seconds {
+    case ..<45: return "just now"
+    case ..<3_600: return "\(Int((seconds / 60).rounded()))m ago"
+    case ..<86_400: return "\(Int((seconds / 3_600).rounded()))h ago"
+    case ..<2_592_000: return "\(Int((seconds / 86_400).rounded()))d ago"
+    case ..<31_536_000: return "\(Int((seconds / 2_592_000).rounded()))mo ago"
+    default: return "\(Int((seconds / 31_536_000).rounded()))y ago"
+    }
   }
 }
 

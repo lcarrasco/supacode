@@ -21,6 +21,7 @@ enum GitOperation: String {
   case branchDelete = "branch_delete"
   case branchRename = "branch_rename"
   case lineChanges = "line_changes"
+  case lastCommitDate = "last_commit_date"
   case remoteInfo = "remote_info"
   case remoteList = "remote_list"
   case fetchOrigin = "fetch_origin"
@@ -700,6 +701,24 @@ struct GitClient {
       )
       let changes = parseShortstat(diff)
       return (added: changes.added, removed: changes.removed)
+    } catch {
+      return nil
+    }
+  }
+
+  /// Author/commit date of `HEAD` in the worktree, used by the sidebar to show a
+  /// "last active" relative timestamp. `nil` when the worktree has no commits or
+  /// the command fails. Parses the strict-ISO `%cI` format git emits.
+  nonisolated func lastCommitDate(at worktreeURL: URL) async -> Date? {
+    let path = worktreeURL.path(percentEncoded: false)
+    do {
+      let output = try await runGit(
+        operation: .lastCommitDate,
+        arguments: ["-C", path, "log", "-1", "--format=%cI"]
+      )
+      let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty else { return nil }
+      return ISO8601DateFormatter().date(from: trimmed)
     } catch {
       return nil
     }

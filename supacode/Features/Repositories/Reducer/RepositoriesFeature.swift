@@ -399,6 +399,7 @@ struct RepositoriesFeature {
     case worktreeNotificationReceived(Worktree.ID)
     case worktreeBranchNameLoaded(worktreeID: Worktree.ID, name: String)
     case worktreeLineChangesLoaded(worktreeID: Worktree.ID, added: Int, removed: Int)
+    case worktreeLastCommitLoaded(worktreeID: Worktree.ID, date: Date)
     case refreshGithubIntegrationAvailability
     case githubIntegrationAvailabilityUpdated(Bool)
     case repositoryPullRequestRefreshCompleted(Repository.ID)
@@ -2121,6 +2122,12 @@ struct RepositoriesFeature {
           removed: removed,
         )
 
+      case .worktreeLastCommitLoaded(let worktreeID, let date):
+        guard state.sidebarItems[id: worktreeID] != nil else { return .none }
+        return .send(
+          .sidebarItems(.element(id: worktreeID, action: .lastActiveChanged(date)))
+        )
+
       case .repositoryPullRequestsLoaded(let repositoryID, let pullRequestsByWorktreeID):
         guard let repository = state.repositories[id: repositoryID] else {
           return .none
@@ -2796,6 +2803,9 @@ struct RepositoriesFeature {
                 )
               )
             }
+            if let commitDate = await gitClient.lastCommitDate(worktreeURL) {
+              await send(.worktreeLastCommitLoaded(worktreeID: worktreeID, date: commitDate))
+            }
           }
         case .repositoryPullRequestRefresh(let repositoryRootURL, let worktreeIDs):
           let worktrees = worktreeIDs.compactMap { state.worktree(for: $0) }
@@ -3255,6 +3265,12 @@ struct RepositoriesFeature {
         var effects: [Effect<Action>] = [
           .send(.delegate(.selectedWorktreeChanged(selectedWorktree)))
         ]
+        // Stamp "last active" now: selecting a worktree counts as touching it.
+        if let worktreeID, state.sidebarItems[id: worktreeID] != nil {
+          effects.append(
+            .send(.sidebarItems(.element(id: worktreeID, action: .lastActiveChanged(now))))
+          )
+        }
         if focusTerminal, let worktreeID, state.sidebarItems[id: worktreeID] != nil {
           effects.append(
             .send(.sidebarItems(.element(id: worktreeID, action: .focusTerminalRequested)))
@@ -3763,6 +3779,7 @@ struct RepositoriesFeature {
 
       case .refreshGithubIntegrationAvailability, .githubIntegrationAvailabilityUpdated,
         .repositoryPullRequestRefreshCompleted, .worktreeBranchNameLoaded, .worktreeLineChangesLoaded,
+        .worktreeLastCommitLoaded,
         .repositoryPullRequestsLoaded, .pullRequestAction, .setGithubIntegrationEnabled, .setMergedWorktreeAction,
         .setAutoDeleteArchivedWorktreesAfterDays, .autoDeleteExpiredArchivedWorktrees, .setMoveNotifiedWorktreeToTop:
         // Real handling lives in `githubIntegrationReducer` (combined below) to keep `body`
