@@ -352,7 +352,7 @@ extension SidebarItemFeature.Action {
       return [.sidebarStructure, .toolbarNotificationGroups]
     case .pullRequestChanged:
       return .selectedWorktreeSlice
-    case .diffStatsChanged, .pullRequestQueryStarted,
+    case .diffStatsChanged, .lastActiveChanged, .pullRequestQueryStarted,
       .dragSessionChanged,
       .focusTerminalRequested, .focusTerminalConsumed:
       return []
@@ -376,7 +376,7 @@ extension RepositoriesFeature.Action {
     case .sidebarGroupingTogglesChanged, .sidebarNestByBranchChanged,
       .repositoryExpansionChanged, .branchNestExpansionChanged,
       .repositoriesMoved, .pinnedWorktreesMoved, .unpinnedWorktreesMoved,
-      .worktreeNotificationReceived, .worktreeLineChangesLoaded,
+      .worktreeNotificationReceived, .worktreeLineChangesLoaded, .worktreeLastCommitLoaded,
       .consumeTerminalFocus:
       return .sidebarStructure
 

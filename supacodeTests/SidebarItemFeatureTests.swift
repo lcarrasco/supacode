@@ -21,6 +21,26 @@ struct SidebarItemFeatureTests {
     await store.send(.diffStatsChanged(added: 3, removed: 1))
   }
 
+  @Test func lastActiveChangedIsMonotonic() async {
+    let store = TestStore(initialState: makeState(name: "feature")) {
+      SidebarItemFeature()
+    }
+    let early = Date(timeIntervalSince1970: 1_000)
+    let late = Date(timeIntervalSince1970: 2_000)
+    // First signal sets the timestamp.
+    await store.send(.lastActiveChanged(early)) {
+      $0.lastActiveAt = early
+    }
+    // A newer signal advances it.
+    await store.send(.lastActiveChanged(late)) {
+      $0.lastActiveAt = late
+    }
+    // An older signal never regresses the value: no-op.
+    await store.send(.lastActiveChanged(early))
+    // Re-sending the current value is also a no-op.
+    await store.send(.lastActiveChanged(late))
+  }
+
   @Test func lifecycleEqualityGuardSkipsNoOps() async {
     var state = makeState(name: "feature")
     state.lifecycle = .archiving

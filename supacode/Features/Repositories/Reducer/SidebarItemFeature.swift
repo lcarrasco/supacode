@@ -88,6 +88,10 @@ struct SidebarItemFeature {
 
     var addedLines: Int?
     var removedLines: Int?
+    /// "Last active" timestamp shown as a relative date in the sidebar. Holds the
+    /// most-recent of: last commit on HEAD, last selection, last agent activity.
+    /// Updated monotonically (never regresses) via `.lastActiveChanged`.
+    var lastActiveAt: Date?
     var pullRequest: GithubPullRequest?
     /// Branch name at PR-query start; on result land, mismatched results are dropped.
     /// Invariant: non-nil iff a PR query is in flight; cleared by reconcile on branch rename.
@@ -124,6 +128,7 @@ struct SidebarItemFeature {
   enum Action: Equatable, Sendable {
     case lifecycleChanged(State.Lifecycle)
     case diffStatsChanged(added: Int?, removed: Int?)
+    case lastActiveChanged(Date)
     case pullRequestQueryStarted(branch: String)
     case pullRequestChanged(GithubPullRequest?, branchAtQueryTime: String)
     case runningScriptStarted(id: UUID, tint: RepositoryColor)
@@ -147,6 +152,13 @@ struct SidebarItemFeature {
         guard state.addedLines != added || state.removedLines != removed else { return .none }
         state.addedLines = added
         state.removedLines = removed
+        return .none
+
+      case .lastActiveChanged(let date):
+        // Monotonic: keep the newest signal so an older commit date never
+        // overwrites a fresh selection / activity stamp (or vice versa).
+        guard date > (state.lastActiveAt ?? .distantPast) else { return .none }
+        state.lastActiveAt = date
         return .none
 
       case .pullRequestQueryStarted(let branch):
