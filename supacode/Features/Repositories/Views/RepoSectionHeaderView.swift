@@ -11,6 +11,8 @@ struct RepoSectionHeaderView: View {
   var hostInfo: String?
   /// Remote repository whose SSH listing is still resolving; shows a spinner.
   var isResolving: Bool = false
+  /// Local repository root used to source an `apple-touch-icon.png` favicon; nil for remote repos.
+  var rootURL: URL?
 
   private var displayName: String {
     Repository.sidebarDisplayName(custom: customTitle, fallback: name)
@@ -18,7 +20,8 @@ struct RepoSectionHeaderView: View {
 
   var body: some View {
     HStack {
-      HStack(spacing: 4) {
+      HStack(spacing: 6) {
+        RepoFaviconView(rootURL: rootURL, color: color?.color ?? .secondary)
         Text(displayName).foregroundStyle(color?.color ?? .secondary)
         if let hostInfo {
           Image(systemName: "wifi")
