@@ -1,5 +1,4 @@
 import ComposableArchitecture
-import Kingfisher
 import SupacodeSettingsShared
 import SwiftUI
 
@@ -79,7 +78,11 @@ private struct WorktreeToolbarTitleBody: View {
             .foregroundStyle(.secondary)
             .accessibilityHidden(true)
         case .git(let payload):
-          RepositoryOwnerAvatar(rootURL: payload.rootURL)
+          RepoFaviconView(
+            rootURL: payload.rootURL,
+            color: payload.repositoryColor?.color ?? .secondary,
+            size: 24
+          )
         }
       }
       .frame(width: 24, height: 24)
@@ -144,32 +147,6 @@ private struct WorktreeToolbarTitleBody: View {
       let suffix = payload.worktreeSubtitle.map { ", worktree \($0)" } ?? ""
       return "Branch \(payload.branchName) in \(payload.repositoryName)\(suffix)"
     }
-  }
-}
-
-private struct RepositoryOwnerAvatar: View {
-  let rootURL: URL
-  @State private var avatarURL: URL?
-  @Dependency(GitClientDependency.self) private var gitClient
-
-  var body: some View {
-    KFImage(avatarURL)
-      .placeholder {
-        Image(systemName: "arrow.trianglehead.branch")
-          .resizable()
-          .aspectRatio(contentMode: .fit)
-          .padding(2)
-          .accessibilityHidden(true)
-      }
-      .resizable()
-      .aspectRatio(1, contentMode: .fit)
-      .frame(width: 22, height: 22)
-      .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-      .shadow(radius: 1, y: 0.5)
-      .accessibilityHidden(true)
-      .task(id: rootURL) {
-        avatarURL = await GitHubOwnerAvatar.url(for: rootURL, gitClient: gitClient)
-      }
   }
 }
 

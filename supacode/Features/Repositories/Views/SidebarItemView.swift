@@ -186,9 +186,13 @@ enum SidebarCheckBadgeState: Equatable {
     }
   }
 
+  /// t3code teal-300 (#5EEAD4), shared with the leading PR-glyph tint so a
+  /// passing PR reads in one consistent accent instead of green.
+  static let tealAccent = Color(.sRGB, red: 94 / 255, green: 234 / 255, blue: 212 / 255, opacity: 1)
+
   var color: Color {
     switch self {
-    case .passing: .green
+    case .passing: Self.tealAccent
     case .failing: .red
     case .inProgress: .yellow
     }
@@ -237,7 +241,7 @@ enum SidebarPullRequestIcon: Equatable {
   var color: AnyShapeStyle {
     switch self {
     case .branch: AnyShapeStyle(.secondary)
-    case .open: AnyShapeStyle(.green)
+    case .open: AnyShapeStyle(SidebarCheckBadgeState.tealAccent)
     case .draft: AnyShapeStyle(.tertiary)
     case .queued: AnyShapeStyle(.brown)
     case .merged: AnyShapeStyle(.purple)
@@ -401,9 +405,7 @@ private struct IconContent: View, Equatable {
   @Environment(\.backgroundProminence) private var backgroundProminence
 
   /// t3code's `dark:text-teal-300/90` (Tailwind teal-300 `#5EEAD4` at 90%).
-  static let branchIconTeal = AnyShapeStyle(
-    Color(.sRGB, red: 94 / 255, green: 234 / 255, blue: 212 / 255, opacity: 0.9)
-  )
+  static let branchIconTeal = AnyShapeStyle(SidebarCheckBadgeState.tealAccent.opacity(0.9))
 
   static func == (lhs: Self, rhs: Self) -> Bool {
     lhs.isFolder == rhs.isFolder
@@ -510,14 +512,14 @@ private struct IconContent: View, Equatable {
           .symbolVariant(.circle.fill)
           .symbolRenderingMode(.palette)
           .fontWeight(.black)
-          .frame(width: 10, height: 10)
+          .frame(width: 8, height: 8)
           .foregroundStyle(
             isEmphasized ? badgeColor : background,
             isEmphasized ? background : badgeColor,
           )
           .background(in: Circle())
           .accessibilityLabel(checkBadgeState.accessibilityLabel)
-          .offset(x: 2, y: 2)
+          .offset(x: 2.5, y: 2.5)
       }
     }
     .accessibilityLabel(accessibilityLabel ?? "")
