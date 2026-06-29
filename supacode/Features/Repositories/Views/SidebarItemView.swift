@@ -672,17 +672,13 @@ private struct AgentStatusPillContent: View, Equatable {
   let pill: AgentStatusPill
 
   var body: some View {
-    HStack(spacing: 4) {
-      Circle()
-        .fill(pill.color)
-        .frame(width: 6, height: 6)
-      Text(pill.label)
-        .font(.caption)
-        .foregroundStyle(pill.color)
-    }
-    .fixedSize()
-    .accessibilityElement(children: .combine)
-    .accessibilityLabel("Agent \(pill.label)")
+    Circle()
+      .fill(pill.color)
+      .frame(width: 6, height: 6)
+      .fixedSize()
+      .help("Agent \(pill.label)")
+      .accessibilityElement()
+      .accessibilityLabel("Agent \(pill.label)")
   }
 }
 
