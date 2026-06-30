@@ -130,6 +130,7 @@ import Testing
     #expect(DiffHTMLRenderer.language(forPath: "a/b/File.swift") == "swift")
     #expect(DiffHTMLRenderer.language(forPath: "x.yml") == "yaml")
     #expect(DiffHTMLRenderer.language(forPath: "x.tsx") == "typescript")
+    #expect(DiffHTMLRenderer.language(forPath: "lib/main.dart") == "dart")
     #expect(DiffHTMLRenderer.language(forPath: "Makefile") == nil)
   }
 
