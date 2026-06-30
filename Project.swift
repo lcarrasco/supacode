@@ -28,6 +28,9 @@ let appResources: ResourceFileElements = [
   // highlight.js 11.10.0 language grammars not in the "common" bundle.
   // dart  sha256: 409844683e0cb7929368360cceb873ec0981f6c2d343dd154d8216f652ae8083
   "supacode/Resources/hljs-dart.min.js",
+  // DM Sans (OFL) — t3code's UI face. Folder reference so the bundle keeps a
+  // real `Fonts/` directory that `ATSApplicationFontsPath` auto-registers.
+  .folderReference(path: "supacode/Resources/Fonts"),
 ]
 
 let appBuildableFolders: [BuildableFolder] = [
