@@ -21,6 +21,8 @@ enum GitOperation: String {
   case branchDelete = "branch_delete"
   case branchRename = "branch_rename"
   case lineChanges = "line_changes"
+  case changedFiles = "changed_files"
+  case fileDiff = "file_diff"
   case lastCommitDate = "last_commit_date"
   case remoteInfo = "remote_info"
   case remoteList = "remote_list"
@@ -704,6 +706,39 @@ struct GitClient {
     } catch {
       return nil
     }
+  }
+
+  /// Files differing from `HEAD` in the worktree (staged + unstaged) plus
+  /// untracked files, for the Changed Files inspector. Uses
+  /// `status --porcelain=v1 -z -M`: one NUL-delimited, machine-stable command
+  /// that covers tracked changes and untracked files in a single pass.
+  nonisolated func changedFiles(at worktreeURL: URL) async throws -> [ChangedFile] {
+    let path = worktreeURL.path(percentEncoded: false)
+    let output = try await runGit(
+      operation: .changedFiles,
+      arguments: ["-C", path, "status", "--porcelain=v1", "-z", "-M"]
+    )
+    return UnifiedDiffParser.parseChangedFiles(porcelainZ: output)
+  }
+
+  /// Unified diff for a single file vs `HEAD`. Tracked files go through
+  /// `git diff HEAD -- <path>`; untracked files are synthesized as an
+  /// all-added diff from disk (avoids `git diff --no-index`'s exit-code-1
+  /// behavior, which `runGit` would surface as a thrown error).
+  nonisolated func fileDiff(at worktreeURL: URL, for file: ChangedFile) async throws -> FileDiff {
+    if file.status == .untracked {
+      let fileURL = worktreeURL.appending(path: file.path)
+      // Let read failures (permissions, dangling symlink) propagate so the
+      // caller surfaces a "diff unavailable" state instead of a silent empty.
+      let data = try Data(contentsOf: fileURL)
+      return UnifiedDiffParser.untrackedFileDiff(data: data)
+    }
+    let path = worktreeURL.path(percentEncoded: false)
+    let output = try await runGit(
+      operation: .fileDiff,
+      arguments: ["-C", path, "diff", "HEAD", "--unified=3", "--", file.path]
+    )
+    return UnifiedDiffParser.parseFileDiff(output)
   }
 
   /// Author/commit date of `HEAD` in the worktree, used by the sidebar to show a

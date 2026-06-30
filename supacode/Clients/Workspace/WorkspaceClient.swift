@@ -9,14 +9,27 @@ struct WorkspaceClient {
       _ worktree: Worktree,
       _ onError: @escaping @MainActor @Sendable (OpenActionError) -> Void
     ) -> Void
+  /// Opens a single file with the resolved action (editor app, or Finder
+  /// reveal). Used by the Changed Files inspector's filename click.
+  var openFile:
+    @MainActor @Sendable (
+      _ action: OpenWorktreeAction,
+      _ fileURL: URL,
+      _ onError: @escaping @MainActor @Sendable (OpenActionError) -> Void
+    ) -> Void
 }
 
 extension WorkspaceClient: DependencyKey {
-  static let liveValue = WorkspaceClient { action, worktree, onError in
-    WorktreeOpener.perform(action: action, worktree: worktree, onError: onError)
-  }
+  static let liveValue = WorkspaceClient(
+    open: { action, worktree, onError in
+      WorktreeOpener.perform(action: action, worktree: worktree, onError: onError)
+    },
+    openFile: { action, fileURL, onError in
+      WorktreeOpener.performFile(action: action, fileURL: fileURL, onError: onError)
+    }
+  )
 
-  static let testValue = WorkspaceClient { _, _, _ in }
+  static let testValue = WorkspaceClient(open: { _, _, _ in }, openFile: { _, _, _ in })
 }
 
 extension DependencyValues {
@@ -45,6 +58,29 @@ enum WorktreeOpener {
       )
       return
     }
+    launch(action: action, targetURL: targetURL, onError: onError)
+  }
+
+  /// Opens a single file with `action`. `.editor` falls back to the system
+  /// default app for the file; `.finder` reveals it; editor apps open it
+  /// directly via their normal open behaviors with the file as the target.
+  static func performFile(
+    action: OpenWorktreeAction,
+    fileURL: URL,
+    onError: @escaping @MainActor @Sendable (OpenActionError) -> Void
+  ) {
+    guard action != .editor else {
+      NSWorkspace.shared.open(fileURL)
+      return
+    }
+    launch(action: action, targetURL: fileURL, onError: onError)
+  }
+
+  private static func launch(
+    action: OpenWorktreeAction,
+    targetURL: URL,
+    onError: @escaping @MainActor @Sendable (OpenActionError) -> Void
+  ) {
     guard action != .finder else {
       NSWorkspace.shared.activateFileViewerSelecting([targetURL])
       return

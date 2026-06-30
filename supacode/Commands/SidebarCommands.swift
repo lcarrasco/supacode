@@ -14,6 +14,7 @@ struct SidebarCommands: Commands {
   @Shared(.sidebarGroupActiveRows) private var groupActiveRows: Bool
   @Shared(.appStorage("highlightRelevantOnboardingDismissedAt"))
   private var highlightOnboardingDismissedAt: Date = .distantPast
+  @Shared(.changedFilesInspectorVisible) private var changedFilesInspectorVisible
 
   /// Binding that pairs the nesting toggle with a permadismiss of the
   /// onboarding card on transitions to `false`. Lives on the menu command
@@ -90,6 +91,8 @@ struct SidebarCommands: Commands {
         }
         Toggle("Nest Worktrees by Branch", isOn: nestWorktreesToggle)
         Toggle("Hide Worktree Name on Match", isOn: Binding($hideSubtitleOnMatch))
+        Toggle("Show Changed Files", isOn: Binding($changedFilesInspectorVisible))
+          .keyboardShortcut("d", modifiers: [.command, .shift])
       }
     }
   }
