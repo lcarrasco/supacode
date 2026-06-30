@@ -539,6 +539,7 @@ private struct TrailingView: View {
       pullRequest: showsPullRequestInfo ? store.pullRequest : nil,
     )
     let prText = display.pullRequestBadgeStyle?.text
+    let prURL = display.pullRequest.flatMap { URL(string: $0.url) }
     let scriptColors = store.runningScripts.map(\.tint)
     let showsNotificationIndicator = store.hasUnseenNotifications
     let notifications = Array(store.notifications)
@@ -564,7 +565,7 @@ private struct TrailingView: View {
             .equatable()
         }
         if let prText {
-          PullRequestBadgeContent(text: prText)
+          PullRequestBadgeContent(text: prText, url: prURL)
             .equatable()
         }
         if hasStatus {
@@ -605,12 +606,30 @@ private struct DefaultBadgeContent: View, Equatable {
 
 private struct PullRequestBadgeContent: View, Equatable {
   let text: String
+  let url: URL?
+  // `==` ignores @Environment; SwiftUI tracks env changes separately.
+  @Environment(\.openURL) private var openURL
+
+  static func == (lhs: Self, rhs: Self) -> Bool { lhs.text == rhs.text && lhs.url == rhs.url }
 
   var body: some View {
-    Text(text)
+    let label = Text(text)
       .font(.caption)
       .foregroundStyle(.secondary)
       .transition(.blurReplace)
+    if let url {
+      Button {
+        openURL(url)
+      } label: {
+        label
+      }
+      .buttonStyle(.plain)
+      .contentShape(.rect)
+      .help("Open pull request on GitHub")
+      .accessibilityLabel("Open pull request on GitHub")
+    } else {
+      label
+    }
   }
 }
 
