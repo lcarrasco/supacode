@@ -14,6 +14,7 @@ struct WorktreeDetailView: View {
   @Bindable var store: StoreOf<AppFeature>
   let terminalManager: WorktreeTerminalManager
   @Shared(.appStorage("worktreeRowHideSubtitleOnMatch")) private var hideSubtitleOnMatch = true
+  @Shared(.changedFilesInspectorVisible) private var changedFilesInspectorVisible
   @Shared(.settingsFile) private var settingsFile: SettingsFile
 
   private var agentBadgesEnabled: Bool { settingsFile.global.agentPresenceBadgesEnabled }
@@ -126,13 +127,38 @@ struct WorktreeDetailView: View {
     let canOpenLocally = hasActiveWorktree && selectedWorktree?.host == nil
     let resolvedSelection: OpenWorktreeAction? =
       canOpenLocally ? OpenWorktreeAction.availableSelection(store.openActionSelection) : nil
-    return applyFocusedActions(
+    let withActions = applyFocusedActions(
       content: content,
       hasActiveWorktree: hasActiveWorktree,
       canOpenLocally: canOpenLocally,
       hasRunningRunScript: hasRunningRunScript,
       resolvedSelection: resolvedSelection
     )
+    return attachingChangedFilesInspector(to: withActions)
+  }
+
+  /// Attaches the Changed Files inspector and wires its active-worktree
+  /// tracking. Selection tracking is view-driven (via `onChange`) rather than
+  /// emitted from the selection reducer, keeping the feature wiring additive.
+  private func attachingChangedFilesInspector(to content: some View) -> some View {
+    content
+      .inspector(isPresented: Binding($changedFilesInspectorVisible)) {
+        ChangedFilesInspectorView(
+          store: store.scope(state: \.changedFiles, action: \.changedFiles)
+        )
+        .inspectorColumnWidth(min: 260, ideal: 340, max: 520)
+      }
+      .onChange(of: changedFilesInspectorVisible, initial: true) { _, newValue in
+        store.send(.changedFiles(.inspectorVisibilityChanged(newValue)))
+      }
+      .onChange(of: store.repositories.selectedWorktreeID, initial: true) { _, _ in
+        let worktree = store.repositories.worktree(for: store.repositories.selectedWorktreeID)
+        // Only local git worktrees can be diffed; folders / remote (SSH) stay idle.
+        let directory: URL? =
+          (worktree == nil || worktree?.isFolder == true || worktree?.host != nil)
+          ? nil : worktree?.workingDirectory
+        store.send(.changedFiles(.worktreeSelected(id: worktree?.id, directory: directory)))
+      }
   }
 
   private func selectedWorktreeSummaries(
@@ -461,6 +487,7 @@ struct WorktreeDetailView: View {
     let onStopRunScripts: () -> Void
     let onManageRepoScripts: () -> Void
     let onManageGlobalScripts: () -> Void
+    @Shared(.changedFilesInspectorVisible) private var changedFilesInspectorVisible
 
     var body: some ToolbarContent {
       ToolbarItem(placement: .navigation) {
@@ -507,6 +534,14 @@ struct WorktreeDetailView: View {
         // Rebuild the NSMenu when any field changes (#280) so renames propagate without a worktree switch.
         .id(toolbarState.scriptMenuIdentity)
         .transaction { $0.animation = nil }
+      }
+
+      ToolbarItem {
+        Toggle(isOn: Binding($changedFilesInspectorVisible)) {
+          Label("Changed Files", systemImage: "plusminus.circle")
+        }
+        .toggleStyle(.button)
+        .help("Toggle the changed files panel (⇧⌘D)")
       }
     }
 

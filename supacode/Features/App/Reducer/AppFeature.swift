@@ -31,6 +31,7 @@ struct AppFeature {
     /// tab-bar views scope through `\.terminals` (narrow) instead of the full
     /// app store. Mirrors sidebar's `RepositoriesFeature` ownership pattern.
     var terminals = TerminalsFeature.State()
+    var changedFiles = ChangedFilesFeature.State()
     var openActionSelection: OpenWorktreeAction = .finder
     var repoScripts: [ScriptDefinition] = []
     var globalScripts: [ScriptDefinition] = []
@@ -101,6 +102,7 @@ struct AppFeature {
   enum Action {
     case agentPresence(AgentPresenceFeature.Action)
     case terminals(TerminalsFeature.Action)
+    case changedFiles(ChangedFilesFeature.Action)
     case appLaunched
     case scenePhaseChanged(ScenePhase)
     case repositories(RepositoriesFeature.Action)
@@ -902,7 +904,16 @@ struct AppFeature {
         state.pendingDeeplinks.removeAll()
         return .merge(pending.map { .send(.deeplink($0)) })
 
+      case .repositories(.worktreeInfoEvent(.filesChanged(let worktreeID))):
+        // Mirror the watcher's file-change tick into the Changed Files inspector
+        // so it live-refreshes; the child reducer ignores ticks for non-active
+        // worktrees or while hidden.
+        return .send(.changedFiles(.filesChangedEvent(worktreeID: worktreeID)))
+
       case .repositories:
+        return .none
+
+      case .changedFiles:
         return .none
 
       case .settings:
@@ -1142,6 +1153,9 @@ struct AppFeature {
     }
     Scope(state: \.agentPresence, action: \.agentPresence) {
       AgentPresenceFeature()
+    }
+    Scope(state: \.changedFiles, action: \.changedFiles) {
+      ChangedFilesFeature()
     }
     Scope(state: \.repositories, action: \.repositories) {
       RepositoriesFeature()
