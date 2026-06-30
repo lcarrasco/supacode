@@ -63,12 +63,17 @@ struct ChangedFilesInspectorView: View {
     }
   }
 
-  /// Vendored highlight.js source, loaded once and inlined into the diff HTML.
+  /// Vendored highlight.js core plus extra language grammars (not in the
+  /// "common" bundle), loaded once and inlined into the diff HTML. Each
+  /// language file self-registers against `hljs`, so order is core-first.
   private static let highlightScript: String = {
-    guard let url = Bundle.main.url(forResource: "highlight.min", withExtension: "js"),
-      let source = try? String(contentsOf: url, encoding: .utf8)
-    else { return "" }
-    return source
+    let names = ["highlight.min", "hljs-dart.min"]
+    let sources = names.compactMap { name -> String? in
+      guard let url = Bundle.main.url(forResource: name, withExtension: "js") else { return nil }
+      return try? String(contentsOf: url, encoding: .utf8)
+    }
+    // Need the core; extras are optional.
+    return sources.first == nil ? "" : sources.joined(separator: "\n")
   }()
 
   private var html: String {

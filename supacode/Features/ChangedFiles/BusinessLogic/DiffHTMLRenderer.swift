@@ -182,7 +182,7 @@ nonisolated enum DiffHTMLRenderer {
   }
 
   private static let languagesByExtension: [String: String] = [
-    "swift": "swift",
+    "swift": "swift", "dart": "dart",
     "js": "javascript", "mjs": "javascript", "cjs": "javascript", "jsx": "javascript",
     "ts": "typescript", "tsx": "typescript",
     "py": "python", "rb": "ruby", "go": "go", "rs": "rust", "java": "java",

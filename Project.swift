@@ -25,6 +25,9 @@ let appResources: ResourceFileElements = [
   // highlight.js 11.10.0 (MIT), vendored for the Changed Files diff WKWebView.
   // sha256: 471ef9ae90c407af440fcdc48edfeeb562106b3267bd12d99071c162fb52ed32
   "supacode/Resources/highlight.min.js",
+  // highlight.js 11.10.0 language grammars not in the "common" bundle.
+  // dart  sha256: 409844683e0cb7929368360cceb873ec0981f6c2d343dd154d8216f652ae8083
+  "supacode/Resources/hljs-dart.min.js",
 ]
 
 let appBuildableFolders: [BuildableFolder] = [
