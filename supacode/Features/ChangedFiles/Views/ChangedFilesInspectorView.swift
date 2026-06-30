@@ -1,8 +1,8 @@
 import ComposableArchitecture
 import SwiftUI
 
-/// Right-side inspector listing the active worktree's changed files, each
-/// expandable to its inline diff. Dumb renderer over `ChangedFilesFeature`.
+/// Right-side inspector listing the active worktree's changed files with their
+/// inline diffs, rendered as one HTML document in a `WKWebView`.
 struct ChangedFilesInspectorView: View {
   @Bindable var store: StoreOf<ChangedFilesFeature>
 
@@ -56,28 +56,19 @@ struct ChangedFilesInspectorView: View {
       if store.files.isEmpty {
         message("No uncommitted changes.")
       } else {
-        fileList
+        DiffWebView(html: html)
       }
     }
   }
 
-  private var fileList: some View {
-    ScrollView {
-      LazyVStack(spacing: 8) {
-        ForEach(store.files) { file in
-          ChangedFileRowView(
-            file: file,
-            isExpanded: store.state.isExpanded(file.id),
-            isLoadingDiff: store.state.isLoadingDiff(file.id),
-            diff: store.loadedDiffs[file.id],
-            didFail: store.failedDiffIDs.contains(file.id),
-            onToggle: { store.send(.toggleFileCollapsed(file.id)) },
-            onAppear: { store.send(.fileRowAppeared(file.id)) }
-          )
-        }
-      }
-      .padding(8)
-    }
+  private var html: String {
+    DiffHTMLRenderer.document(
+      files: store.files,
+      diffs: store.loadedDiffs,
+      failedIDs: store.failedDiffIDs,
+      diffsSettled: store.diffsLoaded,
+      omittedCount: max(0, store.files.count - ChangedFilesFeature.diffBatchCap)
+    )
   }
 
   private func message(_ text: String) -> some View {

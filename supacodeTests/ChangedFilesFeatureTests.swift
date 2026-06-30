@@ -21,11 +21,12 @@ struct ChangedFilesFeatureTests {
     return state
   }
 
-  @Test func loadsFilesWhenVisibleWorktreeSelected() async {
+  @Test func loadsFilesAndDiffBatchWhenVisibleWorktreeSelected() async {
     let store = TestStore(initialState: makeState(visible: true)) {
       ChangedFilesFeature()
     } withDependencies: {
       $0.gitClient.changedFiles = { _ in [Self.fileA] }
+      $0.gitClient.fileDiff = { _, _ in Self.sampleDiff }
     }
     await store.send(.worktreeSelected(id: "wt", directory: Self.worktreeURL)) {
       $0.activeWorktreeID = "wt"
@@ -36,16 +37,37 @@ struct ChangedFilesFeatureTests {
       $0.files = [Self.fileA]
       $0.loadingState = .loaded
     }
+    await store.receive(\.diffsLoaded) {
+      $0.loadedDiffs = ["A.swift": Self.sampleDiff]
+      $0.diffsLoaded = true
+    }
   }
 
   @Test func hiddenInspectorSkipsLoadOnSelect() async {
     let store = TestStore(initialState: makeState(visible: false)) {
       ChangedFilesFeature()
     }
-    // No git call, no fileListLoaded: only the selection bookkeeping changes.
     await store.send(.worktreeSelected(id: "wt", directory: Self.worktreeURL)) {
       $0.activeWorktreeID = "wt"
       $0.activeWorktreeDirectory = Self.worktreeURL
+    }
+  }
+
+  @Test func emptyFileListSettlesWithoutDiffBatch() async {
+    var state = makeState(visible: true)
+    state.activeWorktreeID = "wt"
+    state.activeWorktreeDirectory = Self.worktreeURL
+    let store = TestStore(initialState: state) {
+      ChangedFilesFeature()
+    } withDependencies: {
+      $0.gitClient.changedFiles = { _ in [] }
+    }
+    await store.send(.refreshRequested) {
+      $0.loadingState = .loading
+    }
+    await store.receive(\.fileListLoaded) {
+      $0.loadingState = .loaded
+      $0.diffsLoaded = true
     }
   }
 
@@ -54,7 +76,6 @@ struct ChangedFilesFeatureTests {
     state.activeWorktreeID = "wt"
     state.activeWorktreeDirectory = Self.worktreeURL
     let store = TestStore(initialState: state) { ChangedFilesFeature() }
-    // Tick for a different worktree: no effect.
     await store.send(.filesChangedEvent(worktreeID: "other"))
   }
 
@@ -66,6 +87,7 @@ struct ChangedFilesFeatureTests {
       ChangedFilesFeature()
     } withDependencies: {
       $0.gitClient.changedFiles = { _ in [Self.fileA, Self.fileB] }
+      $0.gitClient.fileDiff = { _, _ in Self.sampleDiff }
     }
     await store.send(.filesChangedEvent(worktreeID: "wt")) {
       $0.loadingState = .loading
@@ -74,58 +96,37 @@ struct ChangedFilesFeatureTests {
       $0.files = [Self.fileA, Self.fileB]
       $0.loadingState = .loaded
     }
-  }
-
-  @Test func appearingRowLazyLoadsDiffThenCachesAfterCollapseReExpand() async {
-    var state = makeState(visible: true)
-    state.activeWorktreeID = "wt"
-    state.activeWorktreeDirectory = Self.worktreeURL
-    state.files = [Self.fileA]  // expanded by default
-    state.loadingState = .loaded
-    let store = TestStore(initialState: state) {
-      ChangedFilesFeature()
-    } withDependencies: {
-      $0.gitClient.fileDiff = { _, _ in Self.sampleDiff }
-    }
-
-    // Scrolls into view → lazy load.
-    await store.send(.fileRowAppeared("A.swift"))
-    await store.receive(\.diffLoaded) {
-      $0.loadedDiffs = ["A.swift": Self.sampleDiff]
-    }
-    // Collapse.
-    await store.send(.toggleFileCollapsed("A.swift")) {
-      $0.collapsedFileIDs = ["A.swift"]
-    }
-    // Re-expand: cache hit, no diff load effect.
-    await store.send(.toggleFileCollapsed("A.swift")) {
-      $0.collapsedFileIDs = []
+    await store.receive(\.diffsLoaded) {
+      $0.loadedDiffs = ["A.swift": Self.sampleDiff, "B.swift": Self.sampleDiff]
+      $0.diffsLoaded = true
     }
   }
 
-  @Test func fileListReloadDropsStaleDiffAndRefreshesLoadedOne() async {
+  @Test func diffBatchRecordsFailuresWhenDiffThrows() async {
     var state = makeState(visible: true)
     state.activeWorktreeID = "wt"
     state.activeWorktreeDirectory = Self.worktreeURL
-    state.files = [Self.fileA, Self.fileB]
-    state.loadedDiffs = ["A.swift": Self.sampleDiff, "B.swift": Self.sampleDiff]
+    struct Boom: Error {}
     let store = TestStore(initialState: state) {
       ChangedFilesFeature()
     } withDependencies: {
-      $0.gitClient.fileDiff = { _, _ in Self.sampleDiff }
+      $0.gitClient.changedFiles = { _ in [Self.fileA] }
+      $0.gitClient.fileDiff = { _, _ in throw Boom() }
     }
-    // B is gone; A stays and was loaded → cache is cleared and A re-fetched.
-    await store.send(.fileListLoaded([Self.fileA])) {
+    await store.send(.refreshRequested) {
+      $0.loadingState = .loading
+    }
+    await store.receive(\.fileListLoaded) {
       $0.files = [Self.fileA]
       $0.loadingState = .loaded
-      $0.loadedDiffs = [:]
     }
-    await store.receive(\.diffLoaded) {
-      $0.loadedDiffs = ["A.swift": Self.sampleDiff]
+    await store.receive(\.diffsLoaded) {
+      $0.failedDiffIDs = ["A.swift"]
+      $0.diffsLoaded = true
     }
   }
 
-  @Test func inspectorVisibilityChangeLoadsWhenActiveAndEmpty() async {
+  @Test func inspectorVisibilityChangeLoadsWhenActive() async {
     var state = makeState(visible: false)
     state.activeWorktreeID = "wt"
     state.activeWorktreeDirectory = Self.worktreeURL
@@ -133,6 +134,7 @@ struct ChangedFilesFeatureTests {
       ChangedFilesFeature()
     } withDependencies: {
       $0.gitClient.changedFiles = { _ in [Self.fileA] }
+      $0.gitClient.fileDiff = { _, _ in Self.sampleDiff }
     }
     await store.send(.inspectorVisibilityChanged(true)) {
       $0.isInspectorVisible = true
@@ -141,6 +143,10 @@ struct ChangedFilesFeatureTests {
     await store.receive(\.fileListLoaded) {
       $0.files = [Self.fileA]
       $0.loadingState = .loaded
+    }
+    await store.receive(\.diffsLoaded) {
+      $0.loadedDiffs = ["A.swift": Self.sampleDiff]
+      $0.diffsLoaded = true
     }
   }
 }
