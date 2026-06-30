@@ -58,6 +58,15 @@ nonisolated enum ChangedFileStatus: Equatable, Sendable {
 nonisolated struct FileDiff: Equatable, Sendable {
   let hunks: [DiffHunk]
   let isBinary: Bool
+  /// Human note for a hunk-less change git still reports (e.g. a mode/perms
+  /// flip). Shown instead of the generic "No textual changes" placeholder.
+  var nonContentNote: String?
+
+  init(hunks: [DiffHunk], isBinary: Bool, nonContentNote: String? = nil) {
+    self.hunks = hunks
+    self.isBinary = isBinary
+    self.nonContentNote = nonContentNote
+  }
 
   static let binary = FileDiff(hunks: [], isBinary: true)
   static let empty = FileDiff(hunks: [], isBinary: false)

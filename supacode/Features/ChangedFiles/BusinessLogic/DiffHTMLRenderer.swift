@@ -77,7 +77,7 @@ nonisolated enum DiffHTMLRenderer {
       return note(diffsSettled ? "Couldn't load diff" : "Loading…")
     }
     if diff.isBinary { return note("Binary file") }
-    if diff.hunks.isEmpty { return note("No textual changes") }
+    if diff.hunks.isEmpty { return note(diff.nonContentNote ?? "No textual changes") }
     let language = Self.language(forPath: file.path)
     var rows = ""
     for hunk in diff.hunks {
