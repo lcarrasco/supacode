@@ -61,13 +61,22 @@ struct ChangedFilesInspectorView: View {
     }
   }
 
+  /// Vendored highlight.js source, loaded once and inlined into the diff HTML.
+  private static let highlightScript: String = {
+    guard let url = Bundle.main.url(forResource: "highlight.min", withExtension: "js"),
+      let source = try? String(contentsOf: url, encoding: .utf8)
+    else { return "" }
+    return source
+  }()
+
   private var html: String {
     DiffHTMLRenderer.document(
       files: store.files,
       diffs: store.loadedDiffs,
       failedIDs: store.failedDiffIDs,
       diffsSettled: store.diffsLoaded,
-      omittedCount: max(0, store.files.count - ChangedFilesFeature.diffBatchCap)
+      omittedCount: max(0, store.files.count - ChangedFilesFeature.diffBatchCap),
+      highlightScript: Self.highlightScript
     )
   }
 

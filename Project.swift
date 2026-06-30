@@ -22,6 +22,9 @@ let appResources: ResourceFileElements = [
   "supacode/AppIcon.icon",
   "supacode/Assets.xcassets",
   "supacode/notification.wav",
+  // highlight.js 11.10.0 (MIT), vendored for the Changed Files diff WKWebView.
+  // sha256: 471ef9ae90c407af440fcdc48edfeeb562106b3267bd12d99071c162fb52ed32
+  "supacode/Resources/highlight.min.js",
 ]
 
 let appBuildableFolders: [BuildableFolder] = [

@@ -86,6 +86,35 @@ import Testing
     #expect(html.contains("Couldn't load diff"))
   }
 
+  @Test func emitsLanguageAndChangedRanges() {
+    let diff = FileDiff(
+      hunks: [
+        DiffHunk(
+          id: 0,
+          header: "@@ -1 +1 @@",
+          lines: [
+            DiffLine(id: 0, kind: .removed, text: "let value = 1", oldLineNumber: 1, newLineNumber: nil),
+            DiffLine(id: 1, kind: .added, text: "let value = 2", oldLineNumber: nil, newLineNumber: 1),
+          ]
+        )
+      ],
+      isBinary: false
+    )
+    let html = DiffHTMLRenderer.document(
+      files: [Self.file], diffs: [Self.file.id: diff], failedIDs: [], diffsSettled: true
+    )
+    #expect(html.contains("data-l=\"swift\""))
+    // The trailing "1"/"2" differ → a change range is emitted.
+    #expect(html.contains("data-c="))
+  }
+
+  @Test func languageMapsCommonExtensions() {
+    #expect(DiffHTMLRenderer.language(forPath: "a/b/File.swift") == "swift")
+    #expect(DiffHTMLRenderer.language(forPath: "x.yml") == "yaml")
+    #expect(DiffHTMLRenderer.language(forPath: "x.tsx") == "typescript")
+    #expect(DiffHTMLRenderer.language(forPath: "Makefile") == nil)
+  }
+
   @Test func notesOmittedFiles() {
     let html = DiffHTMLRenderer.document(
       files: [Self.file], diffs: [:], failedIDs: [], diffsSettled: true, omittedCount: 5
