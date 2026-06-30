@@ -123,7 +123,7 @@ let project = Project(
       name: "supacode-cli",
       destinations: .macOS,
       product: .commandLineTool,
-      bundleId: "app.supabit.supacode.cli",
+      bundleId: "com.lcarrasco.supacoder.cli",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
       buildableFolders: [
@@ -161,7 +161,7 @@ let project = Project(
       name: "SupacodeSettingsShared",
       destinations: .macOS,
       product: .staticFramework,
-      bundleId: "app.supabit.supacode.settings-shared",
+      bundleId: "com.lcarrasco.supacoder.settings-shared",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
       buildableFolders: [
@@ -184,7 +184,7 @@ let project = Project(
       name: "SupacodeSettingsFeature",
       destinations: .macOS,
       product: .staticFramework,
-      bundleId: "app.supabit.supacode.settings-feature",
+      bundleId: "com.lcarrasco.supacoder.settings-feature",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
       buildableFolders: [
@@ -207,7 +207,7 @@ let project = Project(
       name: "supacode",
       destinations: .macOS,
       product: .app,
-      bundleId: "app.supabit.supacode",
+      bundleId: "com.lcarrasco.supacoder",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .file(path: "supacode/Info.plist"),
       resources: appResources,
@@ -242,6 +242,7 @@ let project = Project(
       settings: .settings(
         base: [
           "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
+          "PRODUCT_NAME": "Supacoder",
           "ENABLE_HARDENED_RUNTIME": "YES",
           "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/../Frameworks",
           "OTHER_LDFLAGS": "$(inherited) -lc++",
@@ -259,7 +260,7 @@ let project = Project(
       name: "supacodeTests",
       destinations: .macOS,
       product: .unitTests,
-      bundleId: "app.supabit.supacodeTests",
+      bundleId: "com.lcarrasco.supacoder.tests",
       deploymentTargets: .macOS("26.1"),
       infoPlist: .default,
       buildableFolders: [
@@ -269,7 +270,7 @@ let project = Project(
       settings: .settings(
         base: [
           "BUNDLE_LOADER": "$(TEST_HOST)",
-          "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/supacode.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/supacode",
+          "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/Supacoder.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Supacoder",
         ],
         defaultSettings: .essential
       )
