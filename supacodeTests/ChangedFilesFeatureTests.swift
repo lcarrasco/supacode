@@ -76,11 +76,11 @@ struct ChangedFilesFeatureTests {
     }
   }
 
-  @Test func expandingRowLoadsDiffThenCachesOnReExpand() async {
+  @Test func appearingRowLazyLoadsDiffThenCachesAfterCollapseReExpand() async {
     var state = makeState(visible: true)
     state.activeWorktreeID = "wt"
     state.activeWorktreeDirectory = Self.worktreeURL
-    state.files = [Self.fileA]
+    state.files = [Self.fileA]  // expanded by default
     state.loadingState = .loaded
     let store = TestStore(initialState: state) {
       ChangedFilesFeature()
@@ -88,36 +88,40 @@ struct ChangedFilesFeatureTests {
       $0.gitClient.fileDiff = { _, _ in Self.sampleDiff }
     }
 
-    await store.send(.fileRowTapped("A.swift")) {
-      $0.expandedFileIDs = ["A.swift"]
-    }
+    // Scrolls into view → lazy load.
+    await store.send(.fileRowAppeared("A.swift"))
     await store.receive(\.diffLoaded) {
       $0.loadedDiffs = ["A.swift": Self.sampleDiff]
     }
     // Collapse.
-    await store.send(.fileRowTapped("A.swift")) {
-      $0.expandedFileIDs = []
+    await store.send(.toggleFileCollapsed("A.swift")) {
+      $0.collapsedFileIDs = ["A.swift"]
     }
     // Re-expand: cache hit, no diff load effect.
-    await store.send(.fileRowTapped("A.swift")) {
-      $0.expandedFileIDs = ["A.swift"]
+    await store.send(.toggleFileCollapsed("A.swift")) {
+      $0.collapsedFileIDs = []
     }
   }
 
-  @Test func fileListReloadDropsStaleDiffsAndExpansion() async {
+  @Test func fileListReloadDropsStaleDiffAndRefreshesLoadedOne() async {
     var state = makeState(visible: true)
     state.activeWorktreeID = "wt"
     state.activeWorktreeDirectory = Self.worktreeURL
     state.files = [Self.fileA, Self.fileB]
-    state.expandedFileIDs = ["B.swift"]
-    state.loadedDiffs = ["B.swift": Self.sampleDiff]
-    let store = TestStore(initialState: state) { ChangedFilesFeature() }
-    // B is gone after reload: its cached diff + expansion must be pruned.
+    state.loadedDiffs = ["A.swift": Self.sampleDiff, "B.swift": Self.sampleDiff]
+    let store = TestStore(initialState: state) {
+      ChangedFilesFeature()
+    } withDependencies: {
+      $0.gitClient.fileDiff = { _, _ in Self.sampleDiff }
+    }
+    // B is gone; A stays and was loaded → cache is cleared and A re-fetched.
     await store.send(.fileListLoaded([Self.fileA])) {
       $0.files = [Self.fileA]
       $0.loadingState = .loaded
       $0.loadedDiffs = [:]
-      $0.expandedFileIDs = []
+    }
+    await store.receive(\.diffLoaded) {
+      $0.loadedDiffs = ["A.swift": Self.sampleDiff]
     }
   }
 

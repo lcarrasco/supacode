@@ -62,20 +62,22 @@ struct ChangedFilesInspectorView: View {
   }
 
   private var fileList: some View {
-    List {
-      ForEach(store.files) { file in
-        ChangedFileRowView(
-          file: file,
-          isExpanded: store.expandedFileIDs.contains(file.id),
-          isLoadingDiff: store.state.isLoadingDiff(file.id),
-          diff: store.loadedDiffs[file.id],
-          didFail: store.failedDiffIDs.contains(file.id),
-          onTap: { store.send(.fileRowTapped(file.id)) }
-        )
-        .listRowInsets(.init(top: 2, leading: 8, bottom: 2, trailing: 4))
+    ScrollView {
+      LazyVStack(spacing: 8) {
+        ForEach(store.files) { file in
+          ChangedFileRowView(
+            file: file,
+            isExpanded: store.state.isExpanded(file.id),
+            isLoadingDiff: store.state.isLoadingDiff(file.id),
+            diff: store.loadedDiffs[file.id],
+            didFail: store.failedDiffIDs.contains(file.id),
+            onToggle: { store.send(.toggleFileCollapsed(file.id)) },
+            onAppear: { store.send(.fileRowAppeared(file.id)) }
+          )
+        }
       }
+      .padding(8)
     }
-    .listStyle(.sidebar)
   }
 
   private func message(_ text: String) -> some View {

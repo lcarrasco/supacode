@@ -23,7 +23,9 @@ struct ChangedFilesFeature {
 
     var loadingState: LoadingState = .idle
     var files: [ChangedFile] = []
-    var expandedFileIDs: Set<ChangedFile.ID> = []
+    /// Files are expanded by default (t3code-style continuous diff scroll);
+    /// this tracks the ones the user has collapsed.
+    var collapsedFileIDs: Set<ChangedFile.ID> = []
     var loadedDiffs: [ChangedFile.ID: FileDiff] = [:]
     var failedDiffIDs: Set<ChangedFile.ID> = []
 
@@ -34,9 +36,13 @@ struct ChangedFilesFeature {
       case failed(String)
     }
 
+    func isExpanded(_ id: ChangedFile.ID) -> Bool {
+      !collapsedFileIDs.contains(id)
+    }
+
     /// True while a row is expanded but its diff hasn't resolved yet.
     func isLoadingDiff(_ id: ChangedFile.ID) -> Bool {
-      expandedFileIDs.contains(id) && loadedDiffs[id] == nil && !failedDiffIDs.contains(id)
+      isExpanded(id) && loadedDiffs[id] == nil && !failedDiffIDs.contains(id)
     }
   }
 
@@ -47,7 +53,10 @@ struct ChangedFilesFeature {
     case refreshRequested
     case fileListLoaded([ChangedFile])
     case fileListFailed(String)
-    case fileRowTapped(ChangedFile.ID)
+    /// A row scrolled into view: lazily fetch its diff if expanded + unloaded.
+    case fileRowAppeared(ChangedFile.ID)
+    /// Header chevron toggled the file's collapsed state.
+    case toggleFileCollapsed(ChangedFile.ID)
     case diffLoaded(ChangedFile.ID, FileDiff)
     case diffFailed(ChangedFile.ID, String)
   }
@@ -71,7 +80,7 @@ struct ChangedFilesFeature {
         state.files = []
         state.loadedDiffs = [:]
         state.failedDiffIDs = []
-        state.expandedFileIDs = []
+        state.collapsedFileIDs = []
         state.loadingState = .idle
         guard directory != nil, state.isInspectorVisible else {
           return .cancel(id: CancelID.fileListLoad)
@@ -102,38 +111,52 @@ struct ChangedFilesFeature {
       case .fileListLoaded(let files):
         state.loadingState = .loaded
         state.files = files
-        // Drop cached diffs / expansion for files no longer present.
+        // Drop cached diffs / collapse state for files no longer present.
         let presentIDs = Set(files.map(\.id))
-        state.loadedDiffs = state.loadedDiffs.filter { presentIDs.contains($0.key) }
         state.failedDiffIDs = state.failedDiffIDs.intersection(presentIDs)
-        state.expandedFileIDs = state.expandedFileIDs.intersection(presentIDs)
-        // Re-fetch diffs for still-expanded files whose content may have changed.
+        state.collapsedFileIDs = state.collapsedFileIDs.intersection(presentIDs)
+        // Re-fetch diffs for files already loaded (the ones the user scrolled
+        // to) since their content may have changed; drop the rest.
         let directory = state.activeWorktreeDirectory
-        let toReload = state.expandedFileIDs.compactMap { id in files.first { $0.id == id } }
+        let toReload =
+          state.loadedDiffs.keys
+          .filter { presentIDs.contains($0) && !state.collapsedFileIDs.contains($0) }
+          .compactMap { id in files.first { $0.id == id } }
+        state.loadedDiffs = [:]
         guard let directory, !toReload.isEmpty else { return .none }
-        state.failedDiffIDs = []
-        for file in toReload { state.loadedDiffs[file.id] = nil }
         return .merge(toReload.map { loadDiff(for: $0, directory: directory) })
 
       case .fileListFailed(let message):
         state.loadingState = .failed(message)
         return .none
 
-      case .fileRowTapped(let id):
-        if state.expandedFileIDs.contains(id) {
-          state.expandedFileIDs.remove(id)
-          return .cancel(id: CancelID.diffLoad(id))
-        }
-        state.expandedFileIDs.insert(id)
-        state.failedDiffIDs.remove(id)
-        // Cache hit: nothing to load.
-        guard state.loadedDiffs[id] == nil,
+      case .fileRowAppeared(let id):
+        // Lazy-load the diff when an expanded row scrolls into view.
+        guard state.isExpanded(id),
+          state.loadedDiffs[id] == nil,
+          !state.failedDiffIDs.contains(id),
           let directory = state.activeWorktreeDirectory,
           let file = state.files.first(where: { $0.id == id })
         else {
           return .none
         }
         return loadDiff(for: file, directory: directory)
+
+      case .toggleFileCollapsed(let id):
+        if state.collapsedFileIDs.contains(id) {
+          // Expanding: load on demand if not cached yet.
+          state.collapsedFileIDs.remove(id)
+          state.failedDiffIDs.remove(id)
+          guard state.loadedDiffs[id] == nil,
+            let directory = state.activeWorktreeDirectory,
+            let file = state.files.first(where: { $0.id == id })
+          else {
+            return .none
+          }
+          return loadDiff(for: file, directory: directory)
+        }
+        state.collapsedFileIDs.insert(id)
+        return .cancel(id: CancelID.diffLoad(id))
 
       case .diffLoaded(let id, let diff):
         state.loadedDiffs[id] = diff

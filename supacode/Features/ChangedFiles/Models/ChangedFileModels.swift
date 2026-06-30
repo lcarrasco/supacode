@@ -61,6 +61,15 @@ nonisolated struct FileDiff: Equatable, Sendable {
 
   static let binary = FileDiff(hunks: [], isBinary: true)
   static let empty = FileDiff(hunks: [], isBinary: false)
+
+  /// Added / removed line tallies for the file's header `+N −M` badge.
+  var addedLines: Int {
+    hunks.reduce(0) { $0 + $1.lines.lazy.filter { $0.kind == .added }.count }
+  }
+
+  var removedLines: Int {
+    hunks.reduce(0) { $0 + $1.lines.lazy.filter { $0.kind == .removed }.count }
+  }
 }
 
 /// One `@@ … @@` section of a unified diff.
