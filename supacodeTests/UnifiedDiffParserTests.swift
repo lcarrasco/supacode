@@ -3,6 +3,31 @@ import Testing
 
 @testable import supacode
 
+@Suite struct UnifiedDiffParserNonContentTests {
+  @Test func modeOnlyChangeReportsNoteInsteadOfEmpty() {
+    let raw = """
+      diff --git a/script.sh b/script.sh
+      old mode 100644
+      new mode 100755
+      """
+    let diff = UnifiedDiffParser.parseFileDiff(raw)
+    #expect(diff.hunks.isEmpty)
+    #expect(diff.nonContentNote == "Mode changed 100644 → 100755")
+  }
+
+  @Test func contentChangeCarriesNoModeNote() {
+    let raw = """
+      diff --git a/a.txt b/a.txt
+      @@ -1 +1 @@
+      -old
+      +new
+      """
+    let diff = UnifiedDiffParser.parseFileDiff(raw)
+    #expect(diff.nonContentNote == nil)
+    #expect(!diff.hunks.isEmpty)
+  }
+}
+
 @Suite struct UnifiedDiffParserTests {
   // MARK: - Changed-file list
 

@@ -64,6 +64,8 @@ nonisolated enum UnifiedDiffParser {
     var newLine = 0
     var lineID = 0
     var hunkID = 0
+    var oldMode: String?
+    var newMode: String?
 
     func flush() {
       guard let header = currentHeader else { return }
@@ -82,6 +84,12 @@ nonisolated enum UnifiedDiffParser {
         oldLine = oldStart
         newLine = newStart
         continue
+      }
+      // Capture mode-only changes git reports above the first hunk, so a
+      // hunk-less diff can still explain itself (perms flip, exec bit).
+      if currentHeader == nil {
+        if line.hasPrefix("old mode ") { oldMode = String(line.dropFirst("old mode ".count)) }
+        if line.hasPrefix("new mode ") { newMode = String(line.dropFirst("new mode ".count)) }
       }
       // Skip file-header noise that precedes the first hunk.
       guard currentHeader != nil else { continue }
@@ -122,7 +130,11 @@ nonisolated enum UnifiedDiffParser {
       lineID += 1
     }
     flush()
-    return FileDiff(hunks: hunks, isBinary: false)
+    var note: String?
+    if hunks.isEmpty, let oldMode, let newMode, oldMode != newMode {
+      note = "Mode changed \(oldMode) → \(newMode)"
+    }
+    return FileDiff(hunks: hunks, isBinary: false, nonContentNote: note)
   }
 
   /// Extract the old/new starting line numbers from an `@@ -o,s +n,s @@` header.
