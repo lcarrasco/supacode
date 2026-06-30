@@ -15,22 +15,27 @@ nonisolated enum DiffHTMLRenderer {
     failedIDs: Set<ChangedFile.ID>,
     diffsSettled: Bool,
     omittedCount: Int = 0,
-    highlightScript: String = ""
+    highlightScript: String = "",
+    worktreeDirectory: URL? = nil
   ) -> String {
     var body = ""
     for file in files {
-      body += fileSection(file: file, diffs: diffs, failedIDs: failedIDs, diffsSettled: diffsSettled)
+      body += fileSection(
+        file: file,
+        diffs: diffs,
+        failedIDs: failedIDs,
+        diffsSettled: diffsSettled,
+        worktreeDirectory: worktreeDirectory
+      )
     }
     if omittedCount > 0 {
       body += "<div class=\"note\">\(omittedCount) more file(s) not shown</div>"
     }
-    let scripts =
-      highlightScript.isEmpty
-      ? "" : "<script>\(highlightScript)</script><script>\(initScript)</script>"
+    let highlight = highlightScript.isEmpty ? "" : "<script>\(highlightScript)</script>"
     return """
       <!DOCTYPE html><html><head><meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>\(css)</style></head><body>\(body)\(scripts)</body></html>
+      <style>\(css)</style></head><body>\(body)\(highlight)<script>\(initScript)</script></body></html>
       """
   }
 
@@ -40,14 +45,19 @@ nonisolated enum DiffHTMLRenderer {
     file: ChangedFile,
     diffs: [ChangedFile.ID: FileDiff],
     failedIDs: Set<ChangedFile.ID>,
-    diffsSettled: Bool
+    diffsSettled: Bool,
+    worktreeDirectory: URL?
   ) -> String {
     let badge = statusBadge(file.status)
     let name = escape(file.fileName)
+    // Absolute path drives the filename-click "open in editor" bridge.
+    let pathAttr =
+      worktreeDirectory
+      .map { " data-path=\"\(escape($0.appendingPathComponent(file.path).path(percentEncoded: false)))\"" } ?? ""
     let dir = file.directory.isEmpty ? "" : "<span class=\"dir\">\(escape(file.directory))</span>"
     let counts = countsBadge(file: file, diffs: diffs)
     let summary = """
-      <summary><span class="chev"></span>\(badge)<span class="name">\(name)</span>\(dir)\
+      <summary><span class="chev"></span>\(badge)<span class="name"\(pathAttr)>\(name)</span>\(dir)\
       <span class="spacer"></span>\(counts)</summary>
       """
     let body = diffBody(file: file, diffs: diffs, failedIDs: failedIDs, diffsSettled: diffsSettled)
@@ -267,6 +277,15 @@ nonisolated enum DiffHTMLRenderer {
         }
         if (el.dataset.c) applyRanges(el, parseRanges(el.dataset.c));
       });
+      document.querySelectorAll(".name[data-path]").forEach(function (el) {
+        el.addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (window.webkit && webkit.messageHandlers && webkit.messageHandlers.openFile) {
+            webkit.messageHandlers.openFile.postMessage(el.dataset.path);
+          }
+        });
+      });
     })();
     """
 
@@ -329,6 +348,8 @@ nonisolated enum DiffHTMLRenderer {
     .s-unm { color: #8250df; background: rgba(130,80,223,0.18); }
     .s-unt { color: var(--muted); background: rgba(140,140,140,0.18); }
     .name { white-space: nowrap; }
+    .name[data-path] { cursor: pointer; }
+    .name[data-path]:hover { text-decoration: underline; }
     .dir { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
     .spacer { flex: 1 1 auto; }
     .counts { flex: none; display: flex; gap: 6px; }

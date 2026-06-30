@@ -126,6 +126,21 @@ struct ChangedFilesFeatureTests {
     }
   }
 
+  @Test func openFileTappedEmitsDelegate() async {
+    let store = TestStore(initialState: makeState(visible: true)) {
+      ChangedFilesFeature()
+    }
+    await store.send(.openFileTapped("/tmp/wt/A.swift"))
+    await store.receive(\.delegate.openFile)
+  }
+
+  @Test func openFileTappedIgnoresEmptyPath() async {
+    let store = TestStore(initialState: makeState(visible: true)) {
+      ChangedFilesFeature()
+    }
+    await store.send(.openFileTapped(""))
+  }
+
   @Test func inspectorVisibilityChangeLoadsWhenActive() async {
     var state = makeState(visible: false)
     state.activeWorktreeID = "wt"

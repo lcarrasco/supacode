@@ -108,6 +108,24 @@ import Testing
     #expect(html.contains("data-c="))
   }
 
+  @Test func emitsAbsolutePathWhenWorktreeDirectoryGiven() {
+    let html = DiffHTMLRenderer.document(
+      files: [Self.file],
+      diffs: [:],
+      failedIDs: [],
+      diffsSettled: true,
+      worktreeDirectory: URL(fileURLWithPath: "/tmp/wt")
+    )
+    #expect(html.contains("data-path=\"/tmp/wt/src/App.swift\""))
+  }
+
+  @Test func omitsPathWhenNoWorktreeDirectory() {
+    let html = DiffHTMLRenderer.document(
+      files: [Self.file], diffs: [:], failedIDs: [], diffsSettled: true
+    )
+    #expect(!html.contains("data-path="))
+  }
+
   @Test func languageMapsCommonExtensions() {
     #expect(DiffHTMLRenderer.language(forPath: "a/b/File.swift") == "swift")
     #expect(DiffHTMLRenderer.language(forPath: "x.yml") == "yaml")

@@ -913,6 +913,14 @@ struct AppFeature {
       case .repositories:
         return .none
 
+      case .changedFiles(.delegate(.openFile(let fileURL))):
+        let action = OpenWorktreeAction.availableSelection(state.openActionSelection)
+        return .run { send in
+          await workspaceClient.openFile(action, fileURL) { error in
+            send(.openWorktreeFailed(error))
+          }
+        }
+
       case .changedFiles:
         return .none
 

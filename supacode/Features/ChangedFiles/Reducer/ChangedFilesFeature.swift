@@ -52,6 +52,14 @@ struct ChangedFilesFeature {
     case fileListFailed(String)
     /// Result of the per-file diff batch for the current file set.
     case diffsLoaded(diffs: [ChangedFile.ID: FileDiff], failedIDs: Set<ChangedFile.ID>)
+    /// The user clicked a file name in the diff; `path` is the absolute file path.
+    case openFileTapped(String)
+    case delegate(Delegate)
+  }
+
+  @CasePathable
+  enum Delegate: Equatable {
+    case openFile(URL)
   }
 
   @Dependency(GitClientDependency.self) private var gitClient
@@ -117,6 +125,13 @@ struct ChangedFilesFeature {
         state.loadedDiffs = diffs
         state.failedDiffIDs = failedIDs
         state.diffsLoaded = true
+        return .none
+
+      case .openFileTapped(let path):
+        guard !path.isEmpty else { return .none }
+        return .send(.delegate(.openFile(URL(fileURLWithPath: path))))
+
+      case .delegate:
         return .none
       }
     }

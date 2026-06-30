@@ -56,7 +56,9 @@ struct ChangedFilesInspectorView: View {
       if store.files.isEmpty {
         message("No uncommitted changes.")
       } else {
-        DiffWebView(html: html)
+        DiffWebView(html: html) { path in
+          store.send(.openFileTapped(path))
+        }
       }
     }
   }
@@ -76,7 +78,8 @@ struct ChangedFilesInspectorView: View {
       failedIDs: store.failedDiffIDs,
       diffsSettled: store.diffsLoaded,
       omittedCount: max(0, store.files.count - ChangedFilesFeature.diffBatchCap),
-      highlightScript: Self.highlightScript
+      highlightScript: Self.highlightScript,
+      worktreeDirectory: store.activeWorktreeDirectory
     )
   }
 
