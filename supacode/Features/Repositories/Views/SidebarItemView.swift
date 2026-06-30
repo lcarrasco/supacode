@@ -50,22 +50,22 @@ struct SidebarItemView: View {
       customTint: store.customTint
     )
 
+    // "Needs attention" reads as an unread row: bold + full-prominence title,
+    // replacing the old notification / waiting-agent dots.
+    let requiresAttention =
+      store.hasUnseenNotifications || AgentStatusPill.resolve(store.agents) == .waiting
+
     Label {
       HStack(spacing: 8) {
-        HStack(spacing: 6) {
-          if let pill = AgentStatusPill.resolve(store.agents) {
-            AgentStatusPillContent(pill: pill).equatable()
-          }
-          TitleView(
-            name: resolved.name,
-            subtitle: resolved.subtitle,
-            accent: resolved.accent,
-            customTint: store.customTint,
-            isLifecycleBusy: store.lifecycle.isBusy,
-            isTaskRunning: store.isTaskRunning
-          )
-          .equatable()
-        }
+        TitleView(
+          name: resolved.name,
+          accent: resolved.accent,
+          customTint: store.customTint,
+          requiresAttention: requiresAttention,
+          isLifecycleBusy: store.lifecycle.isBusy,
+          isTaskRunning: store.isTaskRunning
+        )
+        .equatable()
         Spacer(minLength: 0)
         TrailingView(
           store: store,
@@ -173,30 +173,28 @@ struct ResolvedRowDisplay: Equatable {
   }
 }
 
+/// Sidebar status palette lifted from t3code (pingdotgg/t3code,
+/// `ThreadStatusIndicators.tsx` / `Sidebar.logic.ts`): Tailwind `*-300` at the
+/// dark-mode opacities the project uses (e.g. `dark:text-emerald-300/90`).
+enum T3StatusPalette {
+  /// teal-300 (#5EEAD4) — t3code's running/branch accent.
+  static let teal = Color(.sRGB, red: 94 / 255, green: 234 / 255, blue: 212 / 255, opacity: 0.9)
+  /// emerald-300 (#6EE7B7) — open / passing.
+  static let emerald = Color(.sRGB, red: 110 / 255, green: 231 / 255, blue: 183 / 255, opacity: 0.9)
+  /// amber-300 (#FCD34D) — in progress / pending.
+  static let amber = Color(.sRGB, red: 252 / 255, green: 211 / 255, blue: 77 / 255, opacity: 0.9)
+  /// red-300 (#FCA5A5) — failing.
+  static let red = Color(.sRGB, red: 252 / 255, green: 165 / 255, blue: 165 / 255, opacity: 0.9)
+  /// violet-300 (#C4B5FD) — merged.
+  static let violet = Color(.sRGB, red: 196 / 255, green: 181 / 255, blue: 253 / 255, opacity: 0.9)
+  /// zinc-400 (#A1A1AA) — closed / draft / muted.
+  static let zinc = Color(.sRGB, red: 161 / 255, green: 161 / 255, blue: 170 / 255, opacity: 0.8)
+}
+
 enum SidebarCheckBadgeState: Equatable {
   case passing
   case failing
   case inProgress
-
-  var symbolName: String {
-    switch self {
-    case .passing: "checkmark"
-    case .failing: "xmark"
-    case .inProgress: "ellipsis"
-    }
-  }
-
-  /// t3code teal-300 (#5EEAD4), shared with the leading PR-glyph tint so a
-  /// passing PR reads in one consistent accent instead of green.
-  static let tealAccent = Color(.sRGB, red: 94 / 255, green: 234 / 255, blue: 212 / 255, opacity: 1)
-
-  var color: Color {
-    switch self {
-    case .passing: Self.tealAccent
-    case .failing: .red
-    case .inProgress: .yellow
-    }
-  }
 
   var accessibilityLabel: String {
     switch self {
@@ -237,17 +235,6 @@ enum SidebarPullRequestIcon: Equatable {
     case .closed: "git-pull-request-closed"
     }
   }
-
-  var color: AnyShapeStyle {
-    switch self {
-    case .branch: AnyShapeStyle(.secondary)
-    case .open: AnyShapeStyle(SidebarCheckBadgeState.tealAccent)
-    case .draft: AnyShapeStyle(.tertiary)
-    case .queued: AnyShapeStyle(.brown)
-    case .merged: AnyShapeStyle(.purple)
-    case .closed: AnyShapeStyle(.red)
-    }
-  }
 }
 
 private func resolveCheckBadgeState(_ pullRequest: GithubPullRequest?) -> SidebarCheckBadgeState? {
@@ -260,10 +247,11 @@ private func resolveCheckBadgeState(_ pullRequest: GithubPullRequest?) -> Sideba
 
 private struct TitleView: View, Equatable {
   let name: String
-  let subtitle: ResolvedRowDisplay.Subtitle
   let accent: WorktreeAccent
   /// User-supplied row tint. When set, paints the title; otherwise the title uses the default.
   let customTint: RepositoryColor?
+  /// Unseen notifications / agent awaiting input: render the title as an unread row (bold + bright).
+  let requiresAttention: Bool
   let isLifecycleBusy: Bool
   let isTaskRunning: Bool
   // `==` ignores @Environment; SwiftUI tracks env changes separately.
@@ -271,9 +259,9 @@ private struct TitleView: View, Equatable {
 
   static func == (lhs: Self, rhs: Self) -> Bool {
     lhs.name == rhs.name
-      && lhs.subtitle == rhs.subtitle
       && lhs.accent == rhs.accent
       && lhs.customTint == rhs.customTint
+      && lhs.requiresAttention == rhs.requiresAttention
       && lhs.isLifecycleBusy == rhs.isLifecycleBusy
       && lhs.isTaskRunning == rhs.isTaskRunning
   }
@@ -281,74 +269,24 @@ private struct TitleView: View, Equatable {
   var body: some View {
     let isBusy = isLifecycleBusy || isTaskRunning
     let isEmphasized = backgroundProminence == .increased
-    let accentStyle = accent.shapeStyle(emphasized: isEmphasized)
-    VStack(alignment: .leading, spacing: 0) {
-      // Selected row reads in full-prominence white + semibold; every other row
-      // recedes to muted gray (Superset / T3-style), unless the user pinned an
-      // explicit row tint, which we still honor when unselected.
-      let titleStyle: AnyShapeStyle =
-        if isEmphasized {
-          AnyShapeStyle(.primary)
-        } else if let customTint {
-          AnyShapeStyle(customTint.color)
-        } else {
-          AnyShapeStyle(.secondary)
-        }
-      Text(name)
-        .font(.callout)
-        .fontWeight(isEmphasized ? .semibold : .regular)
-        .lineLimit(1)
-        .foregroundStyle(titleStyle)
-        .shimmer(isActive: isBusy)
-      switch subtitle {
-      case .none:
-        EmptyView()
-      case .plain(let text):
-        // Prefix a small branch glyph so the base-branch name reads as metadata
-        // rather than a second title line.
-        HStack(spacing: 3) {
-          Image(systemName: "arrow.trianglehead.branch")
-            .imageScale(.small)
-            .accessibilityHidden(true)
-          Text(text)
-            .lineLimit(1)
-        }
-        .font(.footnote)
-        .foregroundStyle(accentStyle)
-      case .highlight(let repo, let repoColor, let trail, let hostInfo):
-        let repoStyle: AnyShapeStyle =
-          isEmphasized
-          ? AnyShapeStyle(.secondary)
-          : repoColor.map { AnyShapeStyle($0.color) } ?? AnyShapeStyle(.secondary)
-        // `.layoutPriority(1)` on the repo / host makes the trail yield first under a narrow sidebar.
-        HStack(spacing: 0) {
-          Text(repo)
-            .foregroundStyle(repoStyle)
-            .lineLimit(1)
-            .layoutPriority(1)
-          if let hostInfo {
-            Image(systemName: "wifi")
-              .imageScale(.small)
-              .foregroundStyle(.secondary)
-              .help(hostInfo)
-              .accessibilityLabel("Remote host \(hostInfo)")
-              .padding(.leading, 3)
-              .layoutPriority(1)
-          }
-          if let trail {
-            Text(" · ")
-              .foregroundStyle(.secondary)
-              .lineLimit(1)
-            Text(trail)
-              .foregroundStyle(accentStyle)
-              .lineLimit(1)
-          }
-        }
-        .font(.footnote)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(trail.map { "\(repo), \($0)" } ?? repo)
+    // Selected row reads in full-prominence white + semibold; a row that needs
+    // attention reads the same (unread). Every other row recedes to muted gray
+    // (Superset / T3-style), unless the user pinned an explicit row tint.
+    let isProminent = isEmphasized || requiresAttention
+    let titleStyle: AnyShapeStyle =
+      if isProminent {
+        AnyShapeStyle(.primary)
+      } else if let customTint {
+        AnyShapeStyle(customTint.color)
+      } else {
+        AnyShapeStyle(.secondary)
       }
-    }
+    Text(name)
+      .font(.dmSans(.callout))
+      .fontWeight(isProminent ? .semibold : .regular)
+      .lineLimit(1)
+      .foregroundStyle(titleStyle)
+      .shimmer(isActive: isBusy)
   }
 }
 
@@ -404,9 +342,6 @@ private struct IconContent: View, Equatable {
   // `==` ignores @Environment; SwiftUI tracks env changes separately.
   @Environment(\.backgroundProminence) private var backgroundProminence
 
-  /// t3code's `dark:text-teal-300/90` (Tailwind teal-300 `#5EEAD4` at 90%).
-  static let branchIconTeal = AnyShapeStyle(SidebarCheckBadgeState.tealAccent.opacity(0.9))
-
   static func == (lhs: Self, rhs: Self) -> Bool {
     lhs.isFolder == rhs.isFolder
       && lhs.isRemote == rhs.isRemote
@@ -431,23 +366,25 @@ private struct IconContent: View, Equatable {
     icon != .branch
   }
 
-  /// CI status badge only rides a *live* PR — pass/fail/running has no meaning
-  /// on a merged or closed PR, so we suppress it there to cut visual noise.
-  private var showsCheckBadge: Bool {
-    switch icon {
-    case .open, .queued, .draft: true
-    default: false
-    }
-  }
-
-  /// PR-state-driven tint for the leading glyph: open / merge-queued read teal
-  /// (t3code), draft dims, merged is purple, closed is red. Selection flattens
+  /// State-driven tint for the leading glyph, folding the old CI check badge
+  /// into the icon color using t3code's palette (`T3StatusPalette`): merged is
+  /// violet, draft / closed read zinc-gray, and a live PR (open / merge-queued)
+  /// takes its CI color — emerald passing, amber in progress, red failing —
+  /// falling back to teal when it has no checks yet. Selection flattens
   /// everything to `.secondary` for legibility on the highlight fill.
   private var branchIconStyle: AnyShapeStyle {
     guard !isEmphasized else { return AnyShapeStyle(.secondary) }
     switch icon {
-    case .open, .queued: return Self.branchIconTeal
-    default: return icon.color
+    case .merged: return AnyShapeStyle(T3StatusPalette.violet)
+    case .closed, .draft: return AnyShapeStyle(T3StatusPalette.zinc)
+    case .open, .queued:
+      switch checkBadgeState {
+      case .passing: return AnyShapeStyle(T3StatusPalette.emerald)
+      case .inProgress: return AnyShapeStyle(T3StatusPalette.amber)
+      case .failing: return AnyShapeStyle(T3StatusPalette.red)
+      case .none: return AnyShapeStyle(T3StatusPalette.teal)
+      }
+    case .branch: return AnyShapeStyle(.secondary)
     }
   }
 
@@ -478,7 +415,13 @@ private struct IconContent: View, Equatable {
     case .pending: return "Creating"
     case .archiving: return "Archiving"
     case .deleting: return "Deleting"
-    case .idle: return nil
+    case .idle: break
+    }
+    // The CI check badge is gone (folded into the icon color), so surface its
+    // state here instead — color alone isn't accessible.
+    switch icon {
+    case .open, .queued: return checkBadgeState?.accessibilityLabel
+    default: return nil
     }
   }
 
@@ -502,26 +445,6 @@ private struct IconContent: View, Equatable {
       }
     }
     .frame(width: 13, height: 13)
-    .overlay(alignment: .bottomTrailing) {
-      if let checkBadgeState, showsCheckBadge {
-        let badgeColor = AnyShapeStyle(checkBadgeState.color)
-        let background = AnyShapeStyle(.windowBackground)
-        Image(systemName: checkBadgeState.symbolName)
-          .resizable()
-          .aspectRatio(contentMode: .fit)
-          .symbolVariant(.circle.fill)
-          .symbolRenderingMode(.palette)
-          .fontWeight(.black)
-          .frame(width: 8, height: 8)
-          .foregroundStyle(
-            isEmphasized ? badgeColor : background,
-            isEmphasized ? background : badgeColor,
-          )
-          .background(in: Circle())
-          .accessibilityLabel(checkBadgeState.accessibilityLabel)
-          .offset(x: 2.5, y: 2.5)
-      }
-    }
     .accessibilityLabel(accessibilityLabel ?? "")
     .accessibilityHidden(accessibilityLabel == nil)
   }
@@ -540,11 +463,7 @@ private struct TrailingView: View {
     )
     let prText = display.pullRequestBadgeStyle?.text
     let prURL = display.pullRequest.flatMap { URL(string: $0.url) }
-    let scriptColors = store.runningScripts.map(\.tint)
-    let showsNotificationIndicator = store.hasUnseenNotifications
-    let notifications = Array(store.notifications)
     let lastActiveAt = store.lastActiveAt
-    let hasStatus = !scriptColors.isEmpty || showsNotificationIndicator
 
     // Cross-fade via opacity so flipping ⌘ doesn't snap the row.
     ZStack(alignment: .trailing) {
@@ -568,14 +487,6 @@ private struct TrailingView: View {
           PullRequestBadgeContent(text: prText, url: prURL)
             .equatable()
         }
-        if hasStatus {
-          StatusIndicator(
-            runningScriptColors: scriptColors,
-            showsNotificationIndicator: showsNotificationIndicator,
-            notifications: notifications,
-          )
-          .equatable()
-        }
       }
       // Title takes the squeeze under narrow widths, not the counters.
       .fixedSize(horizontal: true, vertical: false)
@@ -583,7 +494,7 @@ private struct TrailingView: View {
       .allowsHitTesting(!hasHint)
 
       Text(shortcutHint ?? "")
-        .font(.caption)
+        .font(.dmSans(.caption))
         .foregroundStyle(.secondary)
         .opacity(hasHint ? 1 : 0)
     }
@@ -596,7 +507,7 @@ private struct TrailingView: View {
 private struct DefaultBadgeContent: View, Equatable {
   var body: some View {
     Text("default")
-      .font(.caption2)
+      .font(.dmSans(.caption2))
       .foregroundStyle(.tertiary)
       .padding(.horizontal, 6)
       .padding(.vertical, 1)
@@ -614,7 +525,7 @@ private struct PullRequestBadgeContent: View, Equatable {
 
   var body: some View {
     let label = Text(text)
-      .font(.caption)
+      .font(.dmSans(.caption))
       .foregroundStyle(.secondary)
       .transition(.blurReplace)
     if let url {
@@ -647,7 +558,7 @@ private struct RelativeDateContent: View, Equatable {
     // selected row (`text-foreground/82`).
     let isEmphasized = backgroundProminence == .increased
     Text(RelativeTimeText.short(for: date))
-      .font(.caption)
+      .font(.dmSans(.caption))
       .foregroundStyle(isEmphasized ? AnyShapeStyle(.secondary) : AnyShapeStyle(.quaternary))
       .monospacedDigit()
       .transition(.blurReplace)
@@ -687,20 +598,6 @@ enum AgentStatusPill: Equatable {
   }
 }
 
-private struct AgentStatusPillContent: View, Equatable {
-  let pill: AgentStatusPill
-
-  var body: some View {
-    Circle()
-      .fill(pill.color)
-      .frame(width: 6, height: 6)
-      .fixedSize()
-      .help("Agent \(pill.label)")
-      .accessibilityElement()
-      .accessibilityLabel("Agent \(pill.label)")
-  }
-}
-
 /// Compact relative-time formatting for the sidebar's "last active" label.
 /// Recomputed at render time; refreshes whenever the row's state changes.
 enum RelativeTimeText {
@@ -733,48 +630,6 @@ enum RelativeTimeText {
     formatter.setLocalizedDateFormatFromTemplate("MMMdyyyy")
     return formatter
   }()
-}
-
-private struct StatusIndicator: View, Equatable {
-  let runningScriptColors: [RepositoryColor]
-  let showsNotificationIndicator: Bool
-  let notifications: [WorktreeTerminalNotification]
-  // `==` ignores @Environment; SwiftUI tracks env changes separately.
-  @Environment(\.backgroundProminence) private var backgroundProminence
-  @Environment(\.focusNotificationAction) private var focusNotificationAction: (WorktreeTerminalNotification) -> Void
-
-  static func == (lhs: Self, rhs: Self) -> Bool {
-    lhs.runningScriptColors == rhs.runningScriptColors
-      && lhs.showsNotificationIndicator == rhs.showsNotificationIndicator
-      && lhs.notifications == rhs.notifications
-  }
-
-  var body: some View {
-    let isEmphasized = backgroundProminence == .increased
-    let isRunning = !runningScriptColors.isEmpty
-    if isRunning || showsNotificationIndicator {
-      ZStack {
-        if isRunning {
-          SidebarPingMultiColorDot(
-            colors: runningScriptColors,
-            isEmphasized: isEmphasized,
-            size: 6,
-            showsSolidCenter: !showsNotificationIndicator
-          )
-        }
-        if showsNotificationIndicator {
-          NotificationPopoverButton(notifications: notifications) {
-            Circle()
-              .fill(.orange)
-              .frame(width: 6, height: 6)
-              .accessibilityLabel("Unread notifications")
-          }
-          .zIndex(1)
-        }
-      }
-      .transition(.blurReplace)
-    }
-  }
 }
 
 private nonisolated let notificationEnvironmentLogger = SupaLogger("Notifications")

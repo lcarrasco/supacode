@@ -22,7 +22,9 @@ struct RepoSectionHeaderView: View {
     HStack {
       HStack(spacing: 6) {
         RepoFaviconView(rootURL: rootURL, color: color?.color ?? .secondary)
-        Text(displayName).foregroundStyle(color?.color ?? .secondary)
+        Text(displayName)
+          .font(.dmSans(.body))
+          .foregroundStyle(color?.color ?? .secondary)
         if let hostInfo {
           Image(systemName: "wifi")
             .imageScale(.small)
