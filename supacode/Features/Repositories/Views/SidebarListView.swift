@@ -283,6 +283,10 @@ private struct SidebarGitRepositorySection: View {
           summary: hoistSummary,
           store: store
         )
+      } else if groups.allSatisfy(\.rowIDs.isEmpty) {
+        // Every row is hoisted away (or the repo has none): show a placeholder
+        // instead of an empty expanded section (à la t3code's "No threads yet").
+        SidebarEmptySectionRow()
       }
     } header: {
       RepoSectionHeaderView(
@@ -350,6 +354,28 @@ private struct SidebarHoistSummaryRow: View {
     .moveDisabled(true)
     .help("Show \(repositoryName)'s pinned and active worktrees")
     .accessibilityLabel("\(summary.label) above. Scroll to them.")
+  }
+}
+
+/// Muted, unselectable placeholder shown when an expanded repo section has no
+/// in-place rows (all hoisted away, or the repo has no worktrees). Mirrors
+/// t3code's "No threads yet" empty state.
+private struct SidebarEmptySectionRow: View {
+  var body: some View {
+    Text("No worktrees yet")
+      .font(.dmSans(.caption))
+      .foregroundStyle(.tertiary)
+      .lineLimit(1)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.leading, SidebarNestLayout.railGutter)
+      .padding(.vertical, 4)
+      .listRowBackground(SidebarRailBackground())
+      .listRowInsets(.leading, 0)
+      .listRowInsets(.trailing, 4)
+      .listRowInsets(.vertical, 0)
+      .moveDisabled(true)
+      .selectionDisabled()
+      .accessibilityLabel("No worktrees yet")
   }
 }
 

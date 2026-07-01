@@ -5,34 +5,6 @@ import Testing
 @testable import supacode
 
 struct SidebarActivityDisplayTests {
-  // MARK: - AgentStatusPill priority.
-
-  @Test func noAgentsYieldsNoPill() {
-    #expect(AgentStatusPill.resolve([]) == nil)
-  }
-
-  @Test func busyAgentWinsAsWorking() {
-    let agents = [
-      AgentPresenceFeature.AgentInstance(agent: .claude, activity: .idle),
-      AgentPresenceFeature.AgentInstance(agent: .claude, activity: .awaitingInput),
-      AgentPresenceFeature.AgentInstance(agent: .claude, activity: .busy),
-    ]
-    #expect(AgentStatusPill.resolve(agents) == .working)
-  }
-
-  @Test func awaitingInputOutranksIdle() {
-    let agents = [
-      AgentPresenceFeature.AgentInstance(agent: .claude, activity: .idle),
-      AgentPresenceFeature.AgentInstance(agent: .claude, activity: .awaitingInput),
-    ]
-    #expect(AgentStatusPill.resolve(agents) == .waiting)
-  }
-
-  @Test func idleOnlyReadsAsCompleted() {
-    let agents = [AgentPresenceFeature.AgentInstance(agent: .claude, activity: .idle)]
-    #expect(AgentStatusPill.resolve(agents) == .completed)
-  }
-
   // MARK: - Relative time formatting.
 
   @Test func relativeTimeBuckets() {

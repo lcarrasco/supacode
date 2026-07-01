@@ -248,6 +248,12 @@ extension SidebarItemFeature.State {
   /// True iff any tracked agent on this row is awaiting user input.
   /// Drives the Active section's classification ("agent awaiting input").
   var hasAgentAwaitingInput: Bool { agents.contains(where: \.awaitingInput) }
+
+  /// Drives the sidebar's "unread" (bold) title. Intentionally *only* the
+  /// terminal's unseen-notification signal: it clears when the worktree is read
+  /// (surfaces un-occlude → notifications marked seen) and does not flicker with
+  /// agent activity transitions the way folding `hasAgentAwaitingInput` in did.
+  var requiresAttention: Bool { hasUnseenNotifications }
 }
 
 /// Shared cascade used by both `SidebarItemFeature.State` (row) and

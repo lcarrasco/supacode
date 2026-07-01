@@ -183,6 +183,74 @@ struct SidebarItemFeatureTests {
     }
   }
 
+  // MARK: - "Unread" (bold title) attention signal.
+
+  /// `requiresAttention` (the sidebar's bold "unread" title) tracks the terminal's
+  /// unseen-notification flag and clears when the worktree is read.
+  @Test func requiresAttentionTracksUnseenNotificationsAndClearsOnRead() async {
+    let store = TestStore(initialState: makeState(name: "feature")) {
+      SidebarItemFeature()
+    }
+    #expect(store.state.requiresAttention == false)
+
+    let surface = UUID()
+    // An unseen notification arrives → the row reads as unread.
+    await store.send(
+      .terminalProjectionChanged(
+        WorktreeRowProjection(
+          surfaceIDs: [surface],
+          isProgressBusy: false,
+          hasUnseenNotifications: true,
+          notifications: []
+        )
+      )
+    ) {
+      $0.hasTerminalProjection = true
+      $0.surfaceIDs = [surface]
+      $0.hasUnseenNotifications = true
+    }
+    #expect(store.state.requiresAttention == true)
+
+    // Reading the worktree (surfaces un-occlude → notifications marked seen)
+    // clears the unseen flag, so the bold state must clear too.
+    await store.send(
+      .terminalProjectionChanged(
+        WorktreeRowProjection(
+          surfaceIDs: [surface],
+          isProgressBusy: false,
+          hasUnseenNotifications: false,
+          notifications: []
+        )
+      )
+    ) {
+      $0.hasUnseenNotifications = false
+    }
+    #expect(store.state.requiresAttention == false)
+  }
+
+  /// Regression: folding agent activity into the "unread" signal made the title
+  /// flicker bold as the agent toggled busy/awaiting and never cleared on read.
+  /// `requiresAttention` must ignore agent state entirely.
+  @Test func requiresAttentionIgnoresAgentActivity() async {
+    let store = TestStore(initialState: makeState(name: "feature")) {
+      SidebarItemFeature()
+    }
+    let waiting = AgentPresenceFeature.AgentInstance(agent: .claude, activity: .awaitingInput)
+    await store.send(.agentSnapshotChanged([waiting], hasActivity: true)) {
+      $0.agents = [waiting]
+      $0.hasAgentActivity = true
+    }
+    // Agent awaiting input surfaces in the Active section, but must NOT bold the row.
+    #expect(store.state.hasAgentAwaitingInput == true)
+    #expect(store.state.requiresAttention == false)
+
+    let busy = AgentPresenceFeature.AgentInstance(agent: .claude, activity: .busy)
+    await store.send(.agentSnapshotChanged([busy], hasActivity: true)) {
+      $0.agents = [busy]
+    }
+    #expect(store.state.requiresAttention == false)
+  }
+
   // MARK: - Stale-PR guard.
 
   @Test func pullRequestChangedDropsResultWhenBranchHasFlipped() async {

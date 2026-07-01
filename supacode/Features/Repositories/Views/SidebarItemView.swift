@@ -7,6 +7,40 @@ import SwiftUI
 enum SidebarNestLayout {
   /// Pixel step a row indents per branch-nesting depth level.
   static let indentStep: CGFloat = 14
+  /// Leading space reserved for the section rail so the row content sits to the
+  /// right of the vertical guide line.
+  static let railGutter: CGFloat = 27
+  /// Where the 1pt rail sits within that gutter, measured from the leading edge
+  /// (roughly under the repo header's favicon column).
+  static let railLeadingInset: CGFloat = 23
+}
+
+/// Continuous leading guide line for in-section rows. Lives in a
+/// `listRowBackground` so it fills the entire cell (including the sidebar
+/// style's inter-row padding) and joins edge-to-edge with neighboring rows.
+struct SidebarRailBackground: View {
+  var body: some View {
+    Rectangle()
+      .fill(.quaternary)
+      .frame(width: 1)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+      .padding(.leading, SidebarNestLayout.railLeadingInset)
+      .accessibilityHidden(true)
+  }
+}
+
+/// Applies the rail background only to in-section rows; hoisted Pinned / Active
+/// rows keep the List's default background so their selection highlight stays.
+private struct SidebarRailBackgroundModifier: ViewModifier {
+  let active: Bool
+
+  func body(content: Content) -> some View {
+    if active {
+      content.listRowBackground(SidebarRailBackground())
+    } else {
+      content
+    }
+  }
 }
 
 /// Repo identity carried alongside a sidebar row so the highlight sections
@@ -51,9 +85,9 @@ struct SidebarItemView: View {
     )
 
     // "Needs attention" reads as an unread row: bold + full-prominence title,
-    // replacing the old notification / waiting-agent dots.
-    let requiresAttention =
-      store.hasUnseenNotifications || AgentStatusPill.resolve(store.agents) == .waiting
+    // replacing the old notification dot. Sourced from state so it clears on
+    // read and doesn't flicker with agent activity.
+    let requiresAttention = store.requiresAttention
 
     Label {
       HStack(spacing: 8) {
@@ -85,10 +119,22 @@ struct SidebarItemView: View {
       )
     }
     .labelStyle(.verticallyCentered)
+    // Rows inside a repo / folder section get a leading vertical rail (à la
+    // t3code) that visually ties the group together; hoisted Pinned / Active
+    // rows (highlightSubtitle != nil) render flush without it. The rail rides a
+    // `listRowBackground` (not an overlay) so it fills the full cell height,
+    // including the sidebar style's inter-row padding, and reads as one
+    // continuous line instead of breaking at every row gap.
+    .padding(.leading, showsRail ? SidebarNestLayout.railGutter : 0)
+    .padding(.vertical, 6)
+    .modifier(SidebarRailBackgroundModifier(active: showsRail))
     .listRowInsets(.leading, CGFloat(nestDepth) * SidebarNestLayout.indentStep)
     .listRowInsets(.trailing, 4)
-    .listRowInsets(.vertical, 6)
+    .listRowInsets(.vertical, 0)
   }
+
+  /// The leading rail belongs to in-section rows, not the hoisted highlight rows.
+  private var showsRail: Bool { highlightSubtitle == nil }
 }
 
 struct ResolvedRowDisplay: Equatable {
@@ -562,39 +608,6 @@ private struct RelativeDateContent: View, Equatable {
       .foregroundStyle(isEmphasized ? AnyShapeStyle(.secondary) : AnyShapeStyle(.quaternary))
       .monospacedDigit()
       .transition(.blurReplace)
-  }
-}
-
-/// Agent status pill shown inline before the row title (à la the reference
-/// sidebar). Derived from the row's tracked agent instances; `nil` = no pill.
-enum AgentStatusPill: Equatable {
-  case working
-  case waiting
-  case completed
-
-  /// Priority: any busy agent wins, then awaiting-input, then a present-but-idle
-  /// agent reads as "Completed" (finished its run). No agents → no pill.
-  static func resolve(_ agents: [AgentPresenceFeature.AgentInstance]) -> AgentStatusPill? {
-    guard !agents.isEmpty else { return nil }
-    if agents.contains(where: { $0.activity == .busy }) { return .working }
-    if agents.contains(where: { $0.activity == .awaitingInput }) { return .waiting }
-    return .completed
-  }
-
-  var label: String {
-    switch self {
-    case .working: "Working"
-    case .waiting: "Waiting"
-    case .completed: "Completed"
-    }
-  }
-
-  var color: Color {
-    switch self {
-    case .working: .blue
-    case .waiting: .orange
-    case .completed: .green
-    }
   }
 }
 
