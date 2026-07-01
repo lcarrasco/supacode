@@ -246,6 +246,10 @@ let project = Project(
         base: [
           "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
           "PRODUCT_NAME": "Supacoder",
+          // Keep the Swift module name stable so `@testable import supacode`
+          // (and the test target's `.target(name: "supacode")` dep) keep working
+          // even though the product/app is renamed to Supacoder.
+          "PRODUCT_MODULE_NAME": "supacode",
           "ENABLE_HARDENED_RUNTIME": "YES",
           "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/../Frameworks",
           "OTHER_LDFLAGS": "$(inherited) -lc++",
